@@ -1,12 +1,5 @@
-//! A chunked grid consists of some number of chunks behind a hashmap of chunk
-//! coordinates.
-//!
-//! For convenience with game maps, this implementation supports negative
-//! indices.  Note however that the array doesn't back itself on disk, and so
-//! using more space than machine memory will crash.
-//!
-//! In the name of expediency the current implementation doesn't compress.
-
+//! Knows how to go from a pair of i64 coords to a chunk id (the bottom left
+//! corner) and an offset in that chunk.
 use crate::chunks::*;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
