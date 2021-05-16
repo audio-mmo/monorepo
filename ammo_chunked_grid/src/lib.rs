@@ -1,5 +1,5 @@
-mod chunked_array;
+mod chunked_grid;
 pub(crate) mod chunks;
 pub(crate) mod u32_lut;
 
-pub use chunked_array::*;
+pub use chunked_grid::*;

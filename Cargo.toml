@@ -1,5 +1,5 @@
 [workspace]
 
 members = [
-    "ammo_chunked_array",
+    "ammo_chunked_grid",
 ]

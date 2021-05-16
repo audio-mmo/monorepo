@@ -13,4 +13,4 @@ Note that while this project uses the Boost license, most of Rust's ecosystem is
 
 Component | Description
 --- | ---
-`ammo_chunked_array` | A chunked, compressed array, primarily used to hold tilemaps.
+`ammo_chunked_grid` | A chunked, compressed array, primarily used to hold tilemaps.
