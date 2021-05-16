@@ -4,7 +4,7 @@ mod uncompressed;
 // to be abstract over the dimensions of the cells.
 ///
 /// Should evenly divide u64::MAX.
-pub(crate) const CHUNK_WIDTH: usize = 64;
+pub(crate) const CHUNK_WIDTH: usize = 128;
 pub(crate) const CHUNK_HEIGHT: usize = 128;
 
 pub(crate) enum Chunk {
