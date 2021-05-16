@@ -102,15 +102,19 @@ impl<T: Eq + Ord + PartialEq + PartialOrd> U32Lut<T> {
         ent.refcount -= 1;
         if ent.refcount == 0 {
             self.freelist.push(val as usize);
+            // We also need to remove this from the inverse index, since the cell is invalid.
+            self.inverse_index.retain(|x| *x != val as usize);
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+
     use super::*;
 
-    #[derive(Eq, Ord, PartialEq, PartialOrd)]
+    #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
     struct Ent(u32);
 
     #[test]
@@ -133,5 +137,37 @@ mod tests {
         // inserting a value we know to be present gives us the same index.
         let got = lut.insert_or_inc_ref(Ent(3));
         assert_eq!(got, 3, "{:?}", lut.inverse_index);
+
+        // Decref and reinsert gives us the same index, when the decref doesn't free the object:
+        lut.dec_ref(3);
+        let got = lut.insert_or_inc_ref(Ent(3));
+        assert_eq!(got, 3);
+
+        // Decrementing twice and inserting something else gives us the index,
+        // which is reused.
+        lut.dec_ref(3);
+        lut.dec_ref(3);
+        let got = lut.insert_or_inc_ref(Ent(100));
+        assert_eq!(got, 3);
+    }
+
+    proptest! {
+        #[test]
+        fn random_ints(values in prop::collection::vec(0..u32::MAX, 0..1000)) {
+            use std::collections::BTreeSet;
+
+            let mut lut = U32Lut::new();
+            for i in values.iter().copied() {
+                let ent = Ent(i);
+                lut.insert_or_inc_ref(ent);
+            }
+
+            let dedup = values.iter().copied().map(|i| Ent(i)).collect::<BTreeSet<_>>();
+            assert_eq!(lut.entries.len(), dedup.len());
+            // Also check that the inverse index is sorted.
+            let dedup_vec = dedup.into_iter().collect::<Vec<_>>();
+            let inv_vec = lut.inverse_index.iter().map(|i| lut.entries[*i].external_value.clone()).collect::<Vec<_>>();
+            assert_eq!(dedup_vec, inv_vec);
+        }
     }
 }
