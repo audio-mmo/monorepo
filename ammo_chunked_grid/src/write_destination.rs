@@ -3,20 +3,20 @@
 use crate::chunks::*;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-struct ChunkId(i64, i64);
+pub(crate) struct ChunkId(i64, i64);
 
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct WriteDestination {
+pub(crate) struct WriteDestination {
     /// The id of the chunk. Should be first, so that sorting writes will sort by the chunk that they're for.
-    chunk: ChunkId,
+    pub(crate) chunk: ChunkId,
     /// x coordinate in the chunk.
-    x: usize,
+    pub(crate) x: usize,
     /// y coordinate in the chunk.
-    y: usize,
+    pub(crate) y: usize,
 }
 
 impl WriteDestination {
-    fn from_coords(x: i64, y: i64) -> WriteDestination {
+    pub(crate) fn from_coords(x: i64, y: i64) -> WriteDestination {
         // we want to take the floor of the integer with respect to the cell
         // size. To do that, recall that negative integers start at u64::MAX/2
         // and climb toward -1.  This means that by going to u64 and taking the

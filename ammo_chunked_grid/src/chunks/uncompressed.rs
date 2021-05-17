@@ -7,6 +7,12 @@ pub(crate) struct UncompressedChunk {
 }
 
 impl UncompressedChunk {
+    pub(crate) fn filled_with(value: u32) -> UncompressedChunk {
+        UncompressedChunk {
+            data: [value; CHUNK_WIDTH * CHUNK_HEIGHT],
+        }
+    }
+
     pub(crate) fn read(&self, x: usize, y: usize) -> u32 {
         debug_assert!(x < CHUNK_WIDTH);
         debug_assert!(y < CHUNK_HEIGHT);

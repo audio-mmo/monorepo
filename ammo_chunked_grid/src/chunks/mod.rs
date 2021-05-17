@@ -12,6 +12,16 @@ pub(crate) enum Chunk {
 }
 
 impl Chunk {
+    /// Create a new uncompressed chunk.  Writes start in an uncompressed chunk,
+    /// then potentially become a different chunk type depending on if the
+    /// caller decides to compress further.  Uncompressed chunk writes always
+    /// succeed.
+    pub fn new_uncompressed(default_val: u32) -> Chunk {
+        Chunk::Uncompressed(Box::new(uncompressed::UncompressedChunk::filled_with(
+            default_val,
+        )))
+    }
+
     pub(crate) fn read(&self, x: usize, y: usize) -> u32 {
         match self {
             Chunk::Uncompressed(c) => c.read(x, y),
@@ -19,7 +29,7 @@ impl Chunk {
     }
 
     /// Write to the cell, returning the old value.
-    pub(crate) fn try_write(&mut self, x: usize, y: usize, value: u32) -> u32 {
+    pub(crate) fn write(&mut self, x: usize, y: usize, value: u32) -> u32 {
         match self {
             // The uncompressed chunk should always accept writing.
             Chunk::Uncompressed(c) => c
