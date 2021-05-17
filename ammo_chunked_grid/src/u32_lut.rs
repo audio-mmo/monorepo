@@ -1,6 +1,8 @@
 //! A `T->u32` LUT optimize for a small number of `T` and for the inverse
 //! `u32->T` lookup, where the table itself assigns the ID.  Used to amortize
 //! array element storage by only ever storing a `u32` in the array itself.
+//!
+//! The implementation must always assign the first inserted element the index `0` in order for `Grid`'s support for defaults to function properly.
 struct LookupTableEntry<T: Eq + Ord + PartialEq + PartialOrd> {
     external_value: T,
     /// When this goes to zero, deallocate this entry for reuse. Used to prevent
@@ -21,7 +23,7 @@ struct LookupTableEntry<T: Eq + Ord + PartialEq + PartialOrd> {
 /// because the chunked array doesn't need an immutable `translate_in`, we only provide `translate_out`.
 ///
 /// Note that this table panics if used incorrectly: it is for internal use only.
-struct U32Lut<T: Eq + Ord + PartialEq + PartialOrd> {
+pub(crate) struct U32Lut<T: Eq + Ord + PartialEq + PartialOrd> {
     // The entries. The value assigned to any particular `T` is the position in this array, and elements never move.
     entries: Vec<LookupTableEntry<T>>,
     /// An index of sorted integers where the elements of the list are indexes
@@ -43,16 +45,16 @@ impl<T: Eq + Ord + PartialEq + PartialOrd> Default for U32Lut<T> {
 }
 
 impl<T: Eq + Ord + PartialEq + PartialOrd> U32Lut<T> {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Default::default()
     }
 
-    fn translate_out(&self, value: u32) -> &T {
+    pub(crate) fn translate_out(&self, value: u32) -> &T {
         &self.entries[value as usize].external_value
     }
 
     /// insert a `T` into the map if ossible.  Return the assigned `u32` value.
-    fn insert_or_inc_ref(&mut self, val: T) -> u32 {
+    pub(crate) fn insert_or_inc_ref(&mut self, val: T) -> u32 {
         // Let's try to just get the current one if possible.
         if let Ok(i) = self
             .inverse_index
@@ -96,7 +98,7 @@ impl<T: Eq + Ord + PartialEq + PartialOrd> U32Lut<T> {
         retval as u32
     }
 
-    fn dec_ref(&mut self, val: u32) {
+    pub(crate) fn dec_ref(&mut self, val: u32) {
         // The value is the index.
         let ent = &mut self.entries[val as usize];
         ent.refcount -= 1;
@@ -153,7 +155,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn random_ints(values in prop::collection::vec(0..u32::MAX, 0..1000)) {
+        fn random_ints(values in prop::collection::vec(0..100u32, 0..1000)) {
             use std::collections::BTreeSet;
 
             let mut lut = U32Lut::new();

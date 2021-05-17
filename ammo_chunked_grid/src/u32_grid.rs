@@ -29,7 +29,7 @@ impl U32Grid {
     }
 
     /// Write a location in the grid, returning the old value.
-    fn write(&mut self, x: i64, y: i64, value: u32) -> u32 {
+    pub(crate) fn write(&mut self, x: i64, y: i64, value: u32) -> u32 {
         let dest = WriteDestination::from_coords(x, y);
         self.chunks
             .entry(dest.chunk)

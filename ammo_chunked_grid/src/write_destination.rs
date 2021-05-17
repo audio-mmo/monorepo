@@ -33,7 +33,6 @@ impl WriteDestination {
             i64::from_ne_bytes((pos_x / CHUNK_WIDTH as u64 * CHUNK_WIDTH as u64).to_ne_bytes()),
             i64::from_ne_bytes((pos_y / CHUNK_HEIGHT as u64 * CHUNK_HEIGHT as u64).to_ne_bytes()),
         );
-        println!("{} {} {:?}", x, y, cid);
         WriteDestination {
             x: (x - cid.0) as usize,
             y: (y - cid.1) as usize,
@@ -54,6 +53,14 @@ mod tests {
                 chunk: ChunkId(0, 0),
                 x: 0,
                 y: 0
+            }
+        );
+        assert_eq!(
+            WriteDestination::from_coords(0, 1),
+            WriteDestination {
+                chunk: ChunkId(0, 0),
+                x: 0,
+                y: 1
             }
         );
         assert_eq!(
