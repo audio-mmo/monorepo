@@ -180,7 +180,7 @@ mod tests {
     }
 
     fn test_circle(cx: f64, cy: f64, radius: f64) {
-        for theta in float_iter(0.0, 360.0, 0.01) {
+        for theta in float_iter(0.0, std::f64::consts::PI * 2.0, 0.01) {
             let (unit_x, unit_y) = (theta.cos(), theta.sin());
             let r = Ray {
                 x: cx,
