@@ -26,6 +26,7 @@ impl RaycastPointIterator {
         let x_inc: i64;
         let y_inc: i64;
         let mut error: f64;
+
         if dx == 0.0 {
             x_inc = 0;
             error = f64::INFINITY;
@@ -38,6 +39,7 @@ impl RaycastPointIterator {
             n += x - x1.floor() as i64;
             error = (x0 - x0.floor()) * dy;
         }
+
         if dy == 0.0 {
             y_inc = 0;
             error -= f64::INFINITY;
@@ -50,6 +52,7 @@ impl RaycastPointIterator {
             n += y - y1.floor() as i64;
             error -= (y0 - y0.floor()) * dx;
         }
+
         RaycastPointIterator {
             dx,
             dy,
@@ -66,27 +69,29 @@ impl RaycastPointIterator {
 impl Iterator for RaycastPointIterator {
     type Item = (i64, i64);
     fn next(&mut self) -> Option<Self::Item> {
-        if self.n > 0 {
-            self.n -= 1;
-            let (x, y) = (self.x, self.y);
-            if self.error > 0.0 {
-                self.y += self.y_inc;
-                self.error -= self.dx;
-            } else {
-                self.x += self.x_inc;
-                self.error += self.dy;
-            }
-            Some((x, y))
-        } else {
-            None
+        if self.n <= 0 {
+            return None;
         }
+
+        self.n -= 1;
+        let (x, y) = (self.x, self.y);
+        if self.error > 0.0 {
+            self.y += self.y_inc;
+            self.error -= self.dx;
+        } else {
+            self.x += self.x_inc;
+            self.error += self.dy;
+        }
+        Some((x, y))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::rays::*;
+    use super::*;
+
     use std::collections::HashSet;
+
     #[test]
     fn test_length_one_simple() {
         let directions = vec![(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
@@ -117,12 +122,17 @@ mod tests {
         test_circle(0.0, 0.0, 2.0);
     }
 
+    /// Iterator from start to stop by step. Not safe for use in non-test code.
+    fn float_iter(start: f64, stop: f64, step: f64) -> impl Iterator<Item = f64> {
+        let count = ((stop - start) / step) as u64;
+        (0..count)
+            .into_iter()
+            .map(move |i| start + (i as f64 * step))
+    }
+
     fn test_circle(cx: f64, cy: f64, radius: f64) {
-        for theta in 0..6300 {
-            let theta = (theta as f64) * 0.001;
-            println!("theta={}", theta);
+        for theta in float_iter(0.0, 360.0, 0.01) {
             let (unit_x, unit_y) = (theta.cos(), theta.sin());
-            println!("Unit {}, {}", unit_x, unit_y);
             let (mut x_inc, mut y_inc) = (0, 0);
             if unit_x > 0.0 {
                 x_inc = 1;
@@ -184,7 +194,11 @@ mod tests {
                     }
                 }
             }
-            assert_eq!(test, correct);
+            assert_eq!(
+                test, correct,
+                "theta={} unit_x={} unit_y={}",
+                theta, unit_x, unit_y
+            );
         }
     }
 }
