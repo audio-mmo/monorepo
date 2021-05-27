@@ -1,6 +1,6 @@
 use crate::rays::RaycastPointIterator;
 
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub struct Ray {
     pub x: f64,
     pub y: f64,
