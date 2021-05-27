@@ -130,74 +130,78 @@ mod tests {
             .map(move |i| start + (i as f64 * step))
     }
 
+    /// Get the bounding box of a ray (todo: this should use a proper aabb
+    /// type).
+    fn bounding_box(r: Ray) -> ((i64, i64), (i64, i64)) {
+        // Work out the largest bounding box.
+        let x0 = r.x;
+        let x1 = r.x + r.dx * r.length;
+        let y0 = r.y;
+        let y1 = r.y + r.dy * r.length;
+        let xmin = x0.min(x1);
+        let xmax = x0.max(x1);
+        let ymin = y0.min(y1);
+        let ymax = y0.max(y1);
+        (
+            (xmin.floor() as i64, ymin.floor() as i64),
+            (xmax.ceil() as i64, ymax.ceil() as i64),
+        )
+    }
+
+    fn raycast_slow(r: Ray) -> HashSet<(i64, i64)> {
+        let mut ret = HashSet::new();
+        let ((x1, y1), (x2, y2)) = bounding_box(r);
+
+        ret.insert((r.x.floor() as i64, r.y.floor() as i64));
+
+        for tile_x in x1..=x2 {
+            for tile_y in y1..=y2 {
+                let center_x = tile_x as f64 + 0.5;
+                let center_y = tile_y as f64 + 0.5;
+                let delta_x = center_x - r.x;
+                let delta_y = center_y - r.y;
+                // Get `t`, the distance along the ray closest to the tile.
+                // Note that the ray's dx and dy are already a unit vector.
+                let proj_t = (delta_x * r.dx + delta_y * r.dy).clamp(0.0, r.length);
+                let closest_x = r.x + r.dx * proj_t;
+                let closest_y = r.y + proj_t * r.dy;
+                // Now it's the standard box intersection test.
+                if tile_x as f64 <= closest_x
+                    && closest_x <= (tile_x + 1) as f64
+                    && tile_y as f64 <= closest_y
+                    && closest_y <= (tile_y + 1) as f64
+                {
+                    ret.insert((tile_x, tile_y));
+                }
+            }
+        }
+
+        ret
+    }
+
     fn test_circle(cx: f64, cy: f64, radius: f64) {
         for theta in float_iter(0.0, 360.0, 0.01) {
             let (unit_x, unit_y) = (theta.cos(), theta.sin());
-            let (mut x_inc, mut y_inc) = (0, 0);
-            if unit_x > 0.0 {
-                x_inc = 1;
-            } else if unit_x < 0.0 {
-                x_inc = -1;
-            }
-            if unit_y > 0.0 {
-                y_inc = 1;
-            } else if unit_y < 0.0 {
-                y_inc = -1;
-            }
-            let test: HashSet<(i64, i64)> =
-                Ray::from_angle(cx, cy, radius, theta).raycast().collect();
-            let (cx0, cy0) = (cx, cy);
-            let (cx1, cy1) = (cx + unit_x * radius, cy + unit_y * radius);
-            let (cdx, cdy) = (cx1 - cx0, cy1 - cy0);
-            let mut correct: HashSet<(i64, i64)> = HashSet::new();
-            let (tile_x_min, tile_y_min) = (
-                cx0.floor().min(cx1.floor()) as i64,
-                cy0.floor().min(cy1.floor()) as i64,
-            );
-            let (tile_x_max, tile_y_max) = (
-                cx1.floor().max(cx0.floor()) as i64,
-                cy1.floor().max(cy0.floor()) as i64,
-            );
-            for tx in tile_x_min..=tile_x_max {
-                for ty in tile_y_min..=tile_y_max {
-                    let (tx1, ty1) = (tx as f64 + 0.5, ty as f64 + 0.5);
-                    let (tdx, tdy) = (tx1 - cx0, ty1 - cy0);
-                    //Project (tdx, tdy) onto (cdx, cdy)
-                    //k will be a scalar of (cdx, cdy)
-                    let mut k = (tdx * cdx + tdy * cdy) / (cdx * cdx + cdy * cdy);
-                    //If k is greater than 1 or less than 0 then the closest point to the center of the tile is the corresponding end of the ray
-                    k = k.clamp(0.0, 1.0);
-                    let (px, py) = (cx0 + k * cdx, cy0 + k * cdy);
-                    if px.floor() as i64 == tx && py.floor() as i64 == ty {
-                        correct.insert((tx, ty));
-                        //We need to make sure none of the tiles the algorithm will use are skipped
-                        let (prop_x, prop_y);
-                        if unit_x > 0.0 && tx + 1 <= tile_x_max {
-                            prop_x = (px.ceil() - px) / unit_x;
-                        } else if unit_x < 0.0 && tx - 1 >= tile_x_min {
-                            prop_x = (px.floor() - px) / unit_x;
-                        } else {
-                            prop_x = f64::INFINITY;
-                        }
-                        if unit_y > 0.0 && ty + 1 <= tile_y_max {
-                            prop_y = (py.ceil() - py) / unit_y;
-                        } else if unit_y < 0.0 && ty - 1 >= tile_y_min {
-                            prop_y = (py.floor() - py) / unit_y;
-                        } else {
-                            prop_y = f64::INFINITY;
-                        }
-                        if prop_y < prop_x && prop_y != f64::INFINITY {
-                            correct.insert((tx, ty + y_inc));
-                        } else if prop_x != f64::INFINITY {
-                            correct.insert((tx + x_inc, ty));
-                        }
-                    }
-                }
-            }
+            let r = Ray {
+                x: cx,
+                y: cy,
+                dx: unit_x,
+                dy: unit_y,
+                length: radius,
+            };
+            let mut casted = RaycastPointIterator::new(&r).collect::<Vec<_>>();
+            // casted is unsorted because we dont' know which way the ray goes.
+            casted.sort_unstable();
+            let mut expected = raycast_slow(r).into_iter().collect::<Vec<_>>();
+            // Expected is unsorted because it's checking every tile.
+            expected.sort_unstable();
             assert_eq!(
-                test, correct,
-                "theta={} unit_x={} unit_y={}",
-                theta, unit_x, unit_y
+                casted,
+                expected,
+                "angle={} unit_x={} unit_y={}",
+                theta * 180.0 / std::f64::consts::PI,
+                unit_x,
+                unit_y
             );
         }
     }
