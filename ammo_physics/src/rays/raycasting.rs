@@ -112,16 +112,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn unit_circle() {
-        test_circle(0.0, 0.0, 1.0);
-    }
-
-    #[test]
-    fn large_circle() {
-        test_circle(0.0, 0.0, 2.0);
-    }
-
     /// Iterator from start to stop by step. Not safe for use in non-test code.
     fn float_iter(start: f64, stop: f64, step: f64) -> impl Iterator<Item = f64> {
         let count = ((stop - start) / step) as u64;
@@ -205,4 +195,16 @@ mod tests {
             );
         }
     }
+
+    
+    #[test]
+    fn unit_circle() {
+        test_circle(0.5, 0.5, 1.0);
+    }
+
+    #[test]
+    fn large_circle() {
+        test_circle(0.5, 0.5, 2.0);
+    }
+
 }
