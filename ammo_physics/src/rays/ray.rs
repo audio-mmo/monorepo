@@ -10,7 +10,7 @@ pub struct Ray {
 }
 
 impl Ray {
-    pub fn from_angle(x:f64, y:f64, length:f64, theta:f64) -> Ray {
+    pub fn from_angle(x: f64, y: f64, length: f64, theta: f64) -> Ray {
         Ray::new(x, y, theta.cos(), theta.sin(), length)
     }
 
