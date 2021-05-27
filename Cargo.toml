@@ -1,5 +1,6 @@
 [workspace]
 
 members = [
+    "ammo_physics",
     "ammo_chunked_grid",
 ]
