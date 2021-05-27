@@ -154,7 +154,7 @@ mod tests {
                 // Note that the ray's dx and dy are already a unit vector.
                 let proj_t = (delta_x * r.dx + delta_y * r.dy).clamp(0.0, r.length);
                 let closest_x = r.x + r.dx * proj_t;
-                let closest_y = r.y + proj_t * r.dy;
+                let closest_y = r.y + r.dy * proj_t;
                 // Now it's the standard box intersection test.
                 if tile_x as f64 <= closest_x
                     && closest_x <= (tile_x + 1) as f64
@@ -196,7 +196,6 @@ mod tests {
         }
     }
 
-    
     #[test]
     fn unit_circle() {
         test_circle(0.5, 0.5, 1.0);
@@ -206,5 +205,4 @@ mod tests {
     fn large_circle() {
         test_circle(0.5, 0.5, 2.0);
     }
-
 }
