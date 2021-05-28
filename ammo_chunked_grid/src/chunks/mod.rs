@@ -49,7 +49,10 @@ impl Chunk {
     pub(crate) fn read(&self, x: usize, y: usize) -> u32 {
         let box_data = coords_to_box(x, y);
         let arr_off = self.box_offsets[box_data.box_index];
-        self.data[arr_off as usize + box_data.data_index]
+        // We need to account for boxes that point at defaults and don't want
+        // branches. Let's convert to anint between 0 and 1 and multiply.
+        let mul = (arr_off != 0) as usize;
+        self.data[arr_off as usize + box_data.data_index * mul]
     }
 
     /// Write to the cell, returning the old value.
