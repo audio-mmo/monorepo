@@ -64,7 +64,7 @@ impl Chunk {
         if box_ind == 0 {
             self.data
                 .resize(self.data.len() + BOX_WIDTH * BOX_HEIGHT, defval);
-            box_ind = (self.data.len() - 4) as u16;
+            box_ind = (self.data.len() - BOX_WIDTH * BOX_HEIGHT) as u16;
             self.box_offsets[box_info.box_index] = box_ind;
         }
         let dest = &mut self.data[box_ind as usize + box_info.data_index];
