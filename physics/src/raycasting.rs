@@ -1,7 +1,7 @@
 //! An implementation of the algorithm found at
 //! http://playtechs.blogspot.com/2007/03/raytracing-on-grid.html
 
-use crate::rays::Ray;
+use crate::ray::Ray;
 
 pub struct RaycastPointIterator {
     dx: f64,

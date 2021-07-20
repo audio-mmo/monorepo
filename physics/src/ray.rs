@@ -1,4 +1,4 @@
-use crate::rays::RaycastPointIterator;
+use crate::raycasting::RaycastPointIterator;
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub struct Ray {
