@@ -1,5 +1,3 @@
 [workspace]
 
-members = [
-    "ammo_chunked_grid",
-]
+members = ["chunked_grid"]

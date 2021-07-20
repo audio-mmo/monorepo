@@ -1,5 +1,5 @@
 [package]
-name = "ammo_chunked_grid"
+name = "chunked_grid"
 version = "0.1.0"
 authors = ["Austin Hicks <ahicks@ahicks.io>"]
 edition = "2018"
