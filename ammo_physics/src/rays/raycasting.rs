@@ -200,9 +200,4 @@ mod tests {
     fn unit_circle() {
         test_circle(0.5, 0.5, 1.0);
     }
-
-    #[test]
-    fn large_circle() {
-        test_circle(0.5, 0.5, 2.0);
-    }
 }
