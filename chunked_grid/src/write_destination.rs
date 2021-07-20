@@ -1,6 +1,6 @@
 //! Knows how to go from a pair of i64 coords to a chunk id (the bottom left
 //! corner) and an offset in that chunk.
-use crate::chunks::*;
+use crate::chunk::*;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub(crate) struct ChunkId(i64, i64);

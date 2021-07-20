@@ -3,7 +3,7 @@
 //! This is a HashMap of `Chunk`s.
 use std::collections::HashMap;
 
-use crate::chunks::Chunk;
+use crate::chunk::Chunk;
 use crate::write_destination::*;
 
 // Don't derive debug because nothing good can ever come from printing gigabytes of text in the common case.
