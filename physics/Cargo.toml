@@ -1,5 +1,5 @@
 [package]
-name = "ammo_physics"
+name = "physics"
 version = "0.1.0"
 authors = ["bradjrenshaw <bradjrenshaw@gmail.com>"]
 edition = "2018"
