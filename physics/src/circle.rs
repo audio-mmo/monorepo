@@ -24,7 +24,7 @@ impl Circle {
         self.radius
     }
 
-    pub fn get_aabb(&self) -> Aabb {
+    pub fn get_bounding_box(&self) -> Aabb {
         let p1 = V2::new(self.center.x - self.radius, self.center.y - self.radius);
         let p2 = V2::new(self.center.x + self.radius, self.center.y + self.radius);
         Aabb::from_points(p1, p2).expect("This internal logic should never fail")
@@ -40,7 +40,7 @@ mod tests {
     #[test]
     fn test_aabb() -> Result<()> {
         let c = Circle::new(V2::new(1.0, 1.0), 2.0)?;
-        let b = c.get_aabb();
+        let b = c.get_bounding_box();
         assert_relative_eq!(b.get_p1().x, -1.0);
         assert_relative_eq!(b.get_p1().y, -1.0);
         assert_relative_eq!(b.get_p2().x, 3.0);

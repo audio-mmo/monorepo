@@ -54,7 +54,7 @@ impl Aabb {
         }
     }
 
-    pub fn get_aabb(&self) -> Aabb {
+    pub fn get_bounding_box(&self) -> Aabb {
         *self
     }
 }

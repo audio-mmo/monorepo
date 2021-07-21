@@ -31,7 +31,7 @@ impl Ray {
         RaycastPointIterator::new(self)
     }
 
-    pub fn get_aabb(&self) -> Aabb {
+    pub fn get_bounding_box(&self) -> Aabb {
         let x0 = self.origin.x;
         let y0 = self.origin.y;
         let x1 = self.origin.x + self.length * self.direction.x;
@@ -64,7 +64,7 @@ mod tests {
     #[test]
     fn test_bounding_box() {
         let r = Ray::new(V2::new(1.0, 1.0), V2::new(1.0, 1.0).normalize(), 3.0);
-        let aabb = r.get_aabb();
+        let aabb = r.get_bounding_box();
         assert_relative_eq!(aabb.get_p1().x, 1.0);
         assert_relative_eq!(aabb.get_p1().y, 1.0);
         assert_relative_eq!(aabb.get_p2().x, 3.121320343559643);
@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn test_bounding_box_negative() {
         let r = Ray::new(V2::new(-1.0, -1.0), V2::new(-1.0, -1.0).normalize(), 3.0);
-        let aabb = r.get_aabb();
+        let aabb = r.get_bounding_box();
         assert_relative_eq!(aabb.get_p1().x, -3.121320343559643);
         assert_relative_eq!(aabb.get_p1().y, -3.121320343559643);
         assert_relative_eq!(aabb.get_p2().x, -1.0);
