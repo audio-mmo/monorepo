@@ -6,10 +6,12 @@ mod aabb;
 mod circle;
 mod ray;
 mod raycasting;
+mod shape;
 mod v2;
 
 pub use aabb::*;
 pub use circle::*;
 pub use ray::*;
 pub use raycasting::*;
+pub use shape::*;
 pub use v2::*;
