@@ -1,7 +1,6 @@
 //! An implementation of the algorithm found at
 //! http://playtechs.blogspot.com/2007/03/raytracing-on-grid.html
-
-use crate::ray::Ray;
+use crate::*;
 
 pub struct RaycastPointIterator {
     dx: f64,
@@ -16,8 +15,11 @@ pub struct RaycastPointIterator {
 
 impl RaycastPointIterator {
     pub fn new(ray: &Ray) -> RaycastPointIterator {
-        let (x0, y0) = (ray.x, ray.y);
-        let (x1, y1) = (x0 + ray.dx * ray.length, y0 + ray.dy * ray.length);
+        let (x0, y0) = (ray.origin.x, ray.origin.y);
+        let (x1, y1) = (
+            x0 + ray.direction.x * ray.length,
+            y0 + ray.direction.y * ray.length,
+        );
         let dx = (x1 - x0).abs();
         let dy = (y1 - y0).abs();
         let x = x0.floor() as i64;
@@ -96,7 +98,9 @@ mod tests {
     fn test_length_one_simple() {
         let directions = vec![(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
         for (x, y) in directions.into_iter() {
-            let test = Ray::new(0.0, 0.0, x, y, 1.0).raycast().collect::<Vec<_>>();
+            let test = Ray::new(V2::new(0.0, 0.0), V2::new(x, y), 1.0)
+                .raycast()
+                .collect::<Vec<_>>();
             let correct = vec![(0, 0), (x as i64, y as i64)];
             assert_eq!(test, correct);
         }
@@ -107,7 +111,9 @@ mod tests {
         let directions = vec![(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
         let correct = [(0i64, 0i64)];
         for (x, y) in directions.into_iter() {
-            let test = Ray::new(0.0, 0.0, x, y, 0.0).raycast().collect::<Vec<_>>();
+            let test = Ray::new(V2::new(0.0, 0.0), V2::new(x, y), 0.0)
+                .raycast()
+                .collect::<Vec<_>>();
             assert_eq!(test, correct);
         }
     }
@@ -123,18 +129,10 @@ mod tests {
     /// Get the bounding box of a ray (todo: this should use a proper aabb
     /// type).
     fn bounding_box(r: Ray) -> ((i64, i64), (i64, i64)) {
-        // Work out the largest bounding box.
-        let x0 = r.x;
-        let x1 = r.x + r.dx * r.length;
-        let y0 = r.y;
-        let y1 = r.y + r.dy * r.length;
-        let xmin = x0.min(x1);
-        let xmax = x0.max(x1);
-        let ymin = y0.min(y1);
-        let ymax = y0.max(y1);
+        let aabb = r.get_aabb();
         (
-            (xmin.floor() as i64, ymin.floor() as i64),
-            (xmax.ceil() as i64, ymax.ceil() as i64),
+            (aabb.get_p1().x as i64, aabb.get_p1().y as i64),
+            (aabb.get_p2().x as i64, aabb.get_p2().y as i64),
         )
     }
 
@@ -142,19 +140,20 @@ mod tests {
         let mut ret = HashSet::new();
         let ((x1, y1), (x2, y2)) = bounding_box(r);
 
-        ret.insert((r.x.floor() as i64, r.y.floor() as i64));
+        ret.insert((r.origin.x.floor() as i64, r.origin.y.floor() as i64));
 
         for tile_x in x1..=x2 {
             for tile_y in y1..=y2 {
                 let center_x = tile_x as f64 + 0.5;
                 let center_y = tile_y as f64 + 0.5;
-                let delta_x = center_x - r.x;
-                let delta_y = center_y - r.y;
+                let delta_x = center_x - r.origin.x;
+                let delta_y = center_y - r.origin.y;
                 // Get `t`, the distance along the ray closest to the tile.
                 // Note that the ray's dx and dy are already a unit vector.
-                let proj_t = (delta_x * r.dx + delta_y * r.dy).clamp(0.0, r.length);
-                let closest_x = r.x + r.dx * proj_t;
-                let closest_y = r.y + r.dy * proj_t;
+                let proj_t =
+                    (delta_x * r.direction.x + delta_y * r.direction.y).clamp(0.0, r.length);
+                let closest_x = r.origin.x + r.direction.x * proj_t;
+                let closest_y = r.origin.y + r.direction.y * proj_t;
                 // Now it's the standard box intersection test.
                 if tile_x as f64 <= closest_x
                     && closest_x <= (tile_x + 1) as f64
@@ -172,13 +171,7 @@ mod tests {
     fn test_circle(cx: f64, cy: f64, radius: f64) {
         for theta in float_iter(0.0, std::f64::consts::PI * 2.0, 0.01) {
             let (unit_x, unit_y) = (theta.cos(), theta.sin());
-            let r = Ray {
-                x: cx,
-                y: cy,
-                dx: unit_x,
-                dy: unit_y,
-                length: radius,
-            };
+            let r = Ray::new(V2::new(cx, cy), V2::new(unit_x, unit_y), radius);
             let mut casted = RaycastPointIterator::new(&r).collect::<Vec<_>>();
             // casted is unsorted because we dont' know which way the ray goes.
             casted.sort_unstable();

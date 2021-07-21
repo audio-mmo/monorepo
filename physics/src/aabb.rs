@@ -23,6 +23,14 @@ impl Aabb {
         Ok(Aabb { p1, p2 })
     }
 
+    pub fn get_p1(&self) -> &V2 {
+        &self.p1
+    }
+
+    pub fn get_p2(&self) -> &V2 {
+        &self.p2
+    }
+
     pub fn get_width(&self) -> f64 {
         self.p2.x - self.p1.x
     }
