@@ -45,6 +45,10 @@ impl Aabb {
             y: self.p1.y + self.get_half_height(),
         }
     }
+
+    pub fn get_aabb(&self) -> Aabb {
+        *self
+    }
 }
 
 #[cfg(test)]

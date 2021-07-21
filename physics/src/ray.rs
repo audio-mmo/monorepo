@@ -1,4 +1,4 @@
-use crate::raycasting::RaycastPointIterator;
+use crate::*;
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub struct Ray {
@@ -26,6 +26,22 @@ impl Ray {
 
     pub fn raycast(&self) -> RaycastPointIterator {
         RaycastPointIterator::new(self)
+    }
+
+    pub fn get_aabb(&self) -> Aabb {
+        let x0 = self.x;
+        let y0 = self.y;
+        let x1 = self.x + self.length * self.dx;
+        let y1 = self.y + self.dy * self.length;
+        let p1 = V2 {
+            x: x0.min(x1),
+            y: y0.min(y1),
+        };
+        let p2 = V2 {
+            x: x0.max(x1),
+            y: y0.max(y1),
+        };
+        Aabb::from_points(p1, p2).expect("This internal logic should never fail")
     }
 }
 
