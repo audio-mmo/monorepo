@@ -17,3 +17,21 @@ impl Shape {
         }
     }
 }
+
+impl From<Aabb> for Shape {
+    fn from(other: Aabb) -> Shape {
+        Shape::Aabb(other)
+    }
+}
+
+impl From<Circle> for Shape {
+    fn from(other: Circle) -> Shape {
+        Shape::Circle(other)
+    }
+}
+
+impl From<Ray> for Shape {
+    fn from(other: Ray) -> Shape {
+        Shape::Ray(other)
+    }
+}
