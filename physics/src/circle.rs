@@ -3,6 +3,7 @@ use anyhow::Result;
 
 use crate::*;
 
+#[derive(Debug)]
 pub struct Circle {
     center: V2,
     radius: f64,

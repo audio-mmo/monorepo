@@ -2,6 +2,7 @@
 //! detection.
 use crate::*;
 
+#[derive(Debug)]
 pub enum Shape {
     Aabb(Aabb),
     Circle(Circle),
