@@ -50,6 +50,8 @@ impl Ray {
 
 #[cfg(test)]
 mod tests {
+    use approx::*;
+
     use super::*;
 
     #[test]
@@ -57,5 +59,25 @@ mod tests {
         let correct = Ray::new(V2::new(0.0, 0.0), V2::new(1.0, 0.0), 1.0);
         let test = Ray::from_angle(V2::new(0.0, 0.0), 1.0, 0.0);
         assert_eq!(test, correct);
+    }
+
+    #[test]
+    fn test_bounding_box() {
+        let r = Ray::new(V2::new(1.0, 1.0), V2::new(1.0, 1.0).normalize(), 3.0);
+        let aabb = r.get_aabb();
+        assert_relative_eq!(aabb.get_p1().x, 1.0);
+        assert_relative_eq!(aabb.get_p1().y, 1.0);
+        assert_relative_eq!(aabb.get_p2().x, 3.121320343559643);
+        assert_relative_eq!(aabb.get_p2().y, 3.121320343559643);
+    }
+
+    #[test]
+    fn test_bounding_box_negative() {
+        let r = Ray::new(V2::new(-1.0, -1.0), V2::new(-1.0, -1.0).normalize(), 3.0);
+        let aabb = r.get_aabb();
+        assert_relative_eq!(aabb.get_p1().x, -3.121320343559643);
+        assert_relative_eq!(aabb.get_p1().y, -3.121320343559643);
+        assert_relative_eq!(aabb.get_p2().x, -1.0);
+        assert_relative_eq!(aabb.get_p2().y, -1.0);
     }
 }
