@@ -15,6 +15,18 @@ impl Shape {
             Shape::Circle(ref c) => c.get_bounding_box(),
         }
     }
+
+    /// Test if this shape collides with another.
+    pub fn collides_with(&self, other: &Shape) -> bool {
+        use crate::collision_tests::*;
+        use Shape::*;
+
+        match (self, other) {
+            (Aabb(ref a), Aabb(ref b)) => aabb_aabb_test(a, b),
+            (Circle(ref a), Circle(ref b)) => circle_circle_test(a, b),
+            (Aabb(ref a), Circle(ref b)) | (Circle(ref b), Aabb(ref a)) => aabb_circle_test(a, b),
+        }
+    }
 }
 
 impl From<Aabb> for Shape {
