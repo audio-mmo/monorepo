@@ -4,6 +4,7 @@ extern crate anyhow;
 
 mod aabb;
 mod circle;
+mod collision_tests;
 mod ray;
 mod raycasting;
 mod shape;

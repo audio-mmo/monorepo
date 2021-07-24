@@ -11,3 +11,4 @@ anyhow = "1.0.42"
 
 [dev-dependencies]
 approx = "0.5.0"
+proptest = "1.0.0"
