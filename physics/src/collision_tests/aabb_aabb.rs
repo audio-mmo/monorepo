@@ -75,6 +75,38 @@ mod tests {
 
             assert_eq!(aabb_aabb_test(&box1, &box2), test_oracle(&box1, &box2), "{:?} {:?}", box1, box2);
         }
+    }
 
+    // Does swapping the arguments always yield the same result?
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100000))]
+        #[test]
+        fn test_symmetry(x1 in -1000.0..=1000.0f64,
+            x2 in -1000.0..=1000.0f64,
+            y1 in -1000.0..=1000.0f64,
+            y2 in -1000.0..=1000.0f64,
+            x3 in -1000.0..=1000.0f64,
+            x4 in -1000.0..=1000.0f64,
+            y3 in -1000.0..=1000.0f64,
+            y4 in -1000.0..=1000.0f64,
+        ) {
+            let box1 = {
+                let xmin = x1.min(x2);
+                let xmax = x1.max(x2);
+                let ymin = y1.min(y2);
+                let ymax = y1.max(y2);
+                Aabb::from_points(V2::new(xmin, ymin), V2::new(xmax, ymax)).expect("Should never fail")
+            };
+
+            let box2 = {
+                let xmin = x3.min(x4);
+                let xmax = x3.max(x4);
+                let ymin = y3.min(y4);
+                let ymax = y3.max(y4);
+                Aabb::from_points(V2::new(xmin, ymin), V2::new(xmax, ymax)).expect("Shouldn't fail")
+            };
+
+            assert_eq!(aabb_aabb_test(&box1, &box2), aabb_aabb_test(&box2, &box1), "{:?} {:?}", box1, box2);
+        }
     }
 }
