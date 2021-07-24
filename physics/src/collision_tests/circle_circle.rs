@@ -31,7 +31,7 @@ mod tests {
             let r2 = total_radius * (1.0f64 - dist_percent) + 1.0;
             let circle1 = Circle::new(V2::new(x1, y1), r1).expect("Should succeed");
             let circle2 = Circle::new(V2::new(x2, y2), r2).expect("Should succeed");
-            assert!(circle_circle_test(&circle1, &circle2), "{:?} {:?}", circle1, circle2);
+            prop_assert!(circle_circle_test(&circle1, &circle2), "{:?} {:?}", circle1, circle2);
         }
     }
 
@@ -54,7 +54,7 @@ mod tests {
             let y2 = y + dy * dist;
             let circle1 = Circle::new(V2::new(x, y), r1).expect("Should succeed");
             let circle2 = Circle::new(V2::new(x2, y2), r2).expect("Should succeed");
-            assert!(!circle_circle_test(&circle1, &circle2), "{:?} {:?}", circle1, circle2);
+            prop_assert!(!circle_circle_test(&circle1, &circle2), "{:?} {:?}", circle1, circle2);
         }
     }
 }

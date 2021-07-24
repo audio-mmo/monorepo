@@ -73,7 +73,7 @@ mod tests {
                 Aabb::from_points(V2::new(xmin, ymin), V2::new(xmax, ymax)).expect("Shouldn't fail")
             };
 
-            assert_eq!(aabb_aabb_test(&box1, &box2), test_oracle(&box1, &box2), "{:?} {:?}", box1, box2);
+            prop_assert_eq!(aabb_aabb_test(&box1, &box2), test_oracle(&box1, &box2), "{:?} {:?}", box1, box2);
         }
     }
 
@@ -106,7 +106,7 @@ mod tests {
                 Aabb::from_points(V2::new(xmin, ymin), V2::new(xmax, ymax)).expect("Shouldn't fail")
             };
 
-            assert_eq!(aabb_aabb_test(&box1, &box2), aabb_aabb_test(&box2, &box1), "{:?} {:?}", box1, box2);
+            prop_assert_eq!(aabb_aabb_test(&box1, &box2), aabb_aabb_test(&box2, &box1), "{:?} {:?}", box1, box2);
         }
     }
 }
