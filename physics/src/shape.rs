@@ -6,7 +6,6 @@ use crate::*;
 pub enum Shape {
     Aabb(Aabb),
     Circle(Circle),
-    Ray(Ray),
 }
 
 impl Shape {
@@ -14,7 +13,6 @@ impl Shape {
         match self {
             Shape::Aabb(ref a) => a.get_bounding_box(),
             Shape::Circle(ref c) => c.get_bounding_box(),
-            Shape::Ray(ref r) => r.get_bounding_box(),
         }
     }
 }
@@ -28,11 +26,5 @@ impl From<Aabb> for Shape {
 impl From<Circle> for Shape {
     fn from(other: Circle) -> Shape {
         Shape::Circle(other)
-    }
-}
-
-impl From<Ray> for Shape {
-    fn from(other: Ray) -> Shape {
-        Shape::Ray(other)
     }
 }
