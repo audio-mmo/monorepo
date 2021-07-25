@@ -27,8 +27,8 @@ impl Ray {
         }
     }
 
-    pub fn raycast(&self) -> RaycastPointIterator {
-        RaycastPointIterator::new(self)
+    pub fn raycast(&self) -> TileGridRaycastPointIterator {
+        TileGridRaycastPointIterator::new(self)
     }
 
     pub fn get_bounding_box(&self) -> Aabb {

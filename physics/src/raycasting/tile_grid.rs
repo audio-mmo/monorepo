@@ -2,7 +2,7 @@
 //! http://playtechs.blogspot.com/2007/03/raytracing-on-grid.html
 use crate::*;
 
-pub struct RaycastPointIterator {
+pub struct TileGridRaycastPointIterator {
     dx: f64,
     dy: f64,
     x: i64,
@@ -13,8 +13,8 @@ pub struct RaycastPointIterator {
     error: f64,
 }
 
-impl RaycastPointIterator {
-    pub fn new(ray: &Ray) -> RaycastPointIterator {
+impl TileGridRaycastPointIterator {
+    pub fn new(ray: &Ray) -> TileGridRaycastPointIterator {
         let (x0, y0) = (ray.origin.x, ray.origin.y);
         let (x1, y1) = (
             x0 + ray.direction.x * ray.length,
@@ -55,7 +55,7 @@ impl RaycastPointIterator {
             error -= (y0 - y0.floor()) * dx;
         }
 
-        RaycastPointIterator {
+        TileGridRaycastPointIterator {
             dx,
             dy,
             x,
@@ -68,7 +68,7 @@ impl RaycastPointIterator {
     }
 }
 
-impl Iterator for RaycastPointIterator {
+impl Iterator for TileGridRaycastPointIterator {
     type Item = (i64, i64);
     fn next(&mut self) -> Option<Self::Item> {
         if self.n <= 0 {
