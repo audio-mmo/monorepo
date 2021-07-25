@@ -27,4 +27,11 @@ impl V2 {
             y: self.y / l,
         }
     }
+
+    pub fn dot(&self, other: &V2) -> V2 {
+        V2 {
+            x: self.x * other.x,
+            y: self.y * other.y,
+        }
+    }
 }
