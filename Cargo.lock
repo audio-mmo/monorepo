@@ -16,6 +16,7 @@ dependencies = [
  "anyhow",
  "approx",
  "proptest",
+ "rand",
 ]
 
 [[package]]

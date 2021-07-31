@@ -28,10 +28,15 @@ impl V2 {
         }
     }
 
-    pub fn dot(&self, other: &V2) -> V2 {
-        V2 {
-            x: self.x * other.x,
-            y: self.y * other.y,
-        }
+    pub fn dot(&self, other: &V2) -> f64 {
+        self.x * other.x + self.y * other.y
+    }
+
+    pub fn distance_squared(&self, other: &V2) -> f64 {
+        (self.x - other.x).powi(2) + (self.y - other.y).powi(2)
+    }
+
+    pub fn distance(&self, other: &V2) -> f64 {
+        self.distance_squared(other).sqrt()
     }
 }
