@@ -46,6 +46,14 @@ impl Ray {
         };
         Aabb::from_points(p1, p2).expect("This internal logic should never fail")
     }
+
+    /// Evaluate the ray at a given `t`.
+    pub fn evaluate(&self, t: f64) -> V2 {
+        V2::new(
+            self.origin.x + self.direction.x * t,
+            self.origin.y + self.direction.y * t,
+        )
+    }
 }
 
 #[cfg(test)]

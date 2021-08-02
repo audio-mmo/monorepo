@@ -7,7 +7,7 @@ pub struct V2 {
 }
 
 impl V2 {
-    pub fn new(x: f64, y: f64) -> V2 {
+    pub const fn new(x: f64, y: f64) -> V2 {
         V2 { x, y }
     }
 
