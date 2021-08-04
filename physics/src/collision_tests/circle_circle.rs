@@ -17,7 +17,7 @@ mod tests {
     use proptest::prelude::*;
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(100000))]
+        #![proptest_config(ProptestConfig::with_cases(1000000))]
         #[test]
         fn test_overlap(x1 in -1000.0..=1000.0f64,
             y1 in -1000.0..=1000.0f64,
@@ -36,7 +36,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(100000))]
+        #![proptest_config(ProptestConfig::with_cases(1000000))]
         #[test]
         fn test_not_colliding(x in -1000.0..=1000.0f64,
             y in -1000.0..=1000.0f64,

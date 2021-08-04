@@ -97,7 +97,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(100000))]
+        #![proptest_config(ProptestConfig::with_cases(1000000))]
 
         // Fire a bunch of rays at a sphere. They must intersect, and the point
         // of intersection must be on the sphere.  Additionally a ray fired in

@@ -19,7 +19,7 @@ mod tests {
     // aren't using the minkowski summ currently: the sphere is always
     // "adjacent" to some side of the box, even when at a corner.
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(100000))]
+        #![proptest_config(ProptestConfig::with_cases(1000000))]
         #[test]
         fn test_overlaps_edges(
             x in -1000.0..=1000.0f64,
@@ -51,7 +51,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(100000))]
+        #![proptest_config(ProptestConfig::with_cases(1000000))]
         #[test]
         fn test_not_overlapping(
             x in -1000.0..=1000.0f64,
