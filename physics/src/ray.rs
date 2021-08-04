@@ -27,6 +27,13 @@ impl Ray {
         }
     }
 
+    /// Build a ray from a sourec point and a destination point.
+    pub fn from_points(source: V2, target: V2) -> Ray {
+        let length = source.distance(&target);
+        let direction = V2::new(target.x - source.x, target.y - source.y).normalize();
+        Ray::new(source, direction, length)
+    }
+
     pub fn raycast(&self) -> TileGridRaycastPointIterator {
         TileGridRaycastPointIterator::new(self)
     }
