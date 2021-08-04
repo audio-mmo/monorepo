@@ -1,5 +1,4 @@
 use crate::raycasting::*;
-use crate::*;
 
 /// A ray-aabb intersection test using the slab test, with a modification that allows it to also compute the normal.
 pub(crate) fn ray_aabb_test(ray: &Ray, aabb: &Aabb) -> Option<RaycastingResult> {
@@ -61,8 +60,8 @@ pub(crate) fn ray_aabb_test(ray: &Ray, aabb: &Aabb) -> Option<RaycastingResult> 
     // are NaN.  This means that even though Rust suppresses NaN, we can get NaN
     // for the initial tmin and tmax.  We go ahead and convert these to `tmin =
     // inf` and `tmax = -inf`.
-    let mut txmin = tx1.min(tx2).min(f64::INFINITY);
-    let mut txmax = tx1.max(tx2).max(f64::NEG_INFINITY);
+    let txmin = tx1.min(tx2).min(f64::INFINITY);
+    let txmax = tx1.max(tx2).max(f64::NEG_INFINITY);
 
     // Apply the same logic for a tymin and tymax.
     let tymin = ty1.min(ty2).min(f64::INFINITY);

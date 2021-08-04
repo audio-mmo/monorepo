@@ -1,6 +1,5 @@
 //! Test a ray against a circle.
 use crate::raycasting::*;
-use crate::*;
 
 pub(crate) fn ray_circle_test(ray: &Ray, circle: &Circle) -> Option<RaycastingResult> {
     // How this works is as follows: if we project the vector from the start of

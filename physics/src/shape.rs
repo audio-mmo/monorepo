@@ -27,6 +27,13 @@ impl Shape {
             (Aabb(ref a), Circle(ref b)) | (Circle(ref b), Aabb(ref a)) => aabb_circle_test(a, b),
         }
     }
+
+    pub fn raycast(&self, ray: &Ray) -> Option<RaycastingResult> {
+        match self {
+            Shape::Circle(ref c) => crate::raycasting::ray_circle_test(ray, &c),
+            Shape::Aabb(ref a) => crate::raycasting::ray_aabb_test(ray, &a),
+        }
+    }
 }
 
 impl From<Aabb> for Shape {
