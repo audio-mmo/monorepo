@@ -207,7 +207,14 @@ impl<T> Drop for Slab<T> {
     }
 }
 
+impl<T> Default for Slab<T> {
+    fn default() -> Slab<T> {
+        Slab::new()
+    }
+}
+
 #[cfg(test)]
+#[allow(clippy::mutex_atomic)]
 mod tests {
     use super::*;
 
@@ -280,6 +287,7 @@ mod tests {
         assert!(*dropped.lock().unwrap());
     }
 
+    #[allow(clippy::ptr_arg)]
     fn mutex_vec_to_bool(mvec: &Vec<Mutex<bool>>) -> Vec<bool> {
         mvec.iter().map(|i| *i.lock().unwrap()).collect()
     }
@@ -293,9 +301,9 @@ mod tests {
 
         let mut slab = Slab::new();
         let mut handles = vec![];
-        for i in 0..10 {
-            handles.push(slab.insert(Dropper { dest: &drop_arr[i] }));
-        }
+        drop_arr.iter().for_each(|dest| {
+            handles.push(slab.insert(Dropper { dest }));
+        });
 
         // We want to put some holes in it to see if we can crash the drop impl.
         slab.remove(handles[2].clone());

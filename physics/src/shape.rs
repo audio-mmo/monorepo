@@ -30,8 +30,8 @@ impl Shape {
 
     pub fn raycast(&self, ray: &Ray) -> Option<RaycastingResult> {
         match self {
-            Shape::Circle(ref c) => crate::raycasting::ray_circle_test(ray, &c),
-            Shape::Aabb(ref a) => crate::raycasting::ray_aabb_test(ray, &a),
+            Shape::Circle(ref c) => crate::raycasting::ray_circle_test(ray, c),
+            Shape::Aabb(ref a) => crate::raycasting::ray_aabb_test(ray, a),
         }
     }
 }

@@ -2,5 +2,6 @@
     "editor.detectIndentation": false,
     "editor.tabSize": 4,
     "editor.insertSpaces": true,
-    "files.eol": "\n"
+    "files.eol": "\n",
+    "rust-analyzer.checkOnSave.command": "clippy"
 }

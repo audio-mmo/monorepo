@@ -7,7 +7,7 @@ pub(crate) fn circle_circle_test(c1: &Circle, c2: &Circle) -> bool {
     let dist_squared = (cent1.x - cent2.x).powi(2) + (cent1.y - cent2.y).powi(2);
     // Avoid square root, which is generally very slow.
     let touching_dist_squared = (c1.get_radius() + c2.get_radius()).powi(2);
-    return dist_squared < touching_dist_squared;
+    dist_squared < touching_dist_squared
 }
 
 #[cfg(test)]

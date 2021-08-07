@@ -1,6 +1,7 @@
 use crate::raycasting::*;
 
 /// A ray-aabb intersection test using the slab test, with a modification that allows it to also compute the normal.
+#[allow(clippy::float_cmp)]
 pub(crate) fn ray_aabb_test(ray: &Ray, aabb: &Aabb) -> Option<RaycastingResult> {
     // The one fun thing about this algorithm is that we have to be careful
     // about NaN.  Rust's built-in min/max return the non-NaN number and thus
