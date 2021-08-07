@@ -1,3 +1,3 @@
 [workspace]
 
-members = ["physics", "chunked_grid"]
+members = ["nzslab", "physics", "chunked_grid"]

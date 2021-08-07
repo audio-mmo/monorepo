@@ -10,6 +10,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ammo_nzslab"
+version = "0.1.0"
+
+[[package]]
 name = "ammo_physics"
 version = "0.1.0"
 dependencies = [
