@@ -1,0 +1,39 @@
+on:
+  push: {}
+  pull_request: {}
+
+jobs:
+  test:
+    runs-on: ${{matrix.os}}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: 'Run tests'
+      shell: bash
+      run: |
+        cd $GITHUB_WORKSPACE
+        rustup update
+        cargo test
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-20.04
+          - os: ubuntu-18.04
+          - os: macos-latest
+
+  test_windows:
+    runs-on: windows-2019
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Configure MSVC Environment Variables
+      shell: cmd
+      run: |
+        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        set > %GITHUB_ENV%
+    - name: 'Run tests'
+      shell: cmd
+      run: |
+        cd %GITHUB_WORKSPACE%
+        rustup update
+        cargo test
