@@ -11,23 +11,6 @@ pub struct Aabb {
     p2: V2,
 }
 
-/// Specifies coroners of an AABB.
-///
-///This enum is ordered such that ordering an array containing its values
-///produces a counterclockwise traversal starting at the bottom left coroner
-///(e.g. p1).
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub enum AabbCorner {
-    /// Lower left coroner, e.g. p1.
-    Ll,
-    /// Lower right coroner.
-    Lr,
-    /// Upper right coroner, e.g. p2.
-    Ur,
-    /// Upper left corner.
-    Ul,
-}
-
 impl Aabb {
     pub fn from_points(p1: V2, p2: V2) -> Result<Aabb> {
         if p1.x > p2.x {
@@ -85,17 +68,6 @@ impl Aabb {
 
     pub fn distance_to_point(&self, point: &V2) -> f64 {
         self.distance_to_point_squared(point).sqrt()
-    }
-
-    pub fn get_corner(&self, corner: AabbCorner) -> V2 {
-        use AabbCorner::*;
-
-        match corner {
-            Ll => *self.get_p1(),
-            Ur => *self.get_p2(),
-            Ul => V2::new(self.p1.x, self.p2.y),
-            Lr => V2::new(self.p2.x, self.p1.y),
-        }
     }
 }
 
