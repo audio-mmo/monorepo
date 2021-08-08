@@ -72,6 +72,37 @@ fn get_slab_tag() -> usize {
     COUNTER.fetch_add(1, Ordering::Relaxed)
 }
 
+/// Given a reference to a slice containing the freelist in sorted order, produce
+/// slices that cover all non-free elements of a slab.
+///
+/// This has to be standalone for the sake of the borrow checker.
+#[allow(clippy::needless_lifetimes)] // appears to be a clippy false positive.
+fn allocated_ranges<'a>(
+    freelist: &'a [u32],
+    slab_len: usize,
+) -> impl Iterator<Item = std::ops::Range<usize>> + 'a {
+    let final_range = match freelist.last() {
+        Some(x) if (*x as usize) < slab_len - 2 => Some((*x as usize + 1)..slab_len),
+        _ => None,
+    };
+
+    // be careful in the below: last always points *before* a free element.
+    let mut last = 0;
+    freelist
+        .iter()
+        .filter_map(move |end| {
+            let start = (last + 1) as usize;
+            last = *end;
+            if start == *end as usize {
+                return None;
+            }
+            let ret = start..*end as usize;
+            debug_assert!(!ret.is_empty());
+            Some(ret)
+        })
+        .chain(final_range)
+}
+
 impl<T> Slab<T> {
     #[cfg(any(debug_assertions, test))]
     pub fn new() -> Slab<T> {
@@ -207,16 +238,9 @@ impl<T> Slab<T> {
 
 impl<T> Drop for Slab<T> {
     fn drop(&mut self) {
-        // Don't start at 0, the first index is always uninitialized.
-        let mut last = 1;
-        for next_free in self.free_slots.iter().copied() {
-            for ind in last..next_free {
-                unsafe { std::ptr::drop_in_place(self.data[ind as usize].as_mut_ptr()) };
-            }
-            last = next_free + 1;
-        }
-        for ind in last as usize..self.data.len() {
-            unsafe { std::ptr::drop_in_place(self.data[ind].as_mut_ptr()) };
+        let indices = allocated_ranges(&self.free_slots[..], self.data.len()).flatten();
+        for ind in indices {
+            unsafe { std::ptr::drop_in_place(self.data[ind as usize].as_mut_ptr()) };
         }
     }
 }
