@@ -170,7 +170,14 @@ impl<T> Slab<T> {
         self.check_handle(&handle);
         let ptr = self.data[handle.slot.get() as usize].as_mut_ptr();
         unsafe { std::ptr::drop_in_place(ptr) };
-        self.free_slots.push(handle.slot.get());
+
+        // Insert the slot in sorted order.
+        let insert_at = match self.free_slots.binary_search(&handle.slot.get()) {
+            Ok(_) => panic!("Attempt to re-insert already present free slot"),
+            Err(x) => x,
+        };
+        self.free_slots.insert(insert_at, handle.slot.get());
+
         #[cfg(any(debug_assertions, test))]
         {
             self.versions[handle.slot.get() as usize] += 1;
@@ -200,8 +207,6 @@ impl<T> Slab<T> {
 
 impl<T> Drop for Slab<T> {
     fn drop(&mut self) {
-        // Slabs can be large, so we don't want to actually end up duplicating them as hashsets. Instead, sort the fre slots and infer the ranges.
-        self.free_slots.sort_unstable();
         // Don't start at 0, the first index is always uninitialized.
         let mut last = 1;
         for next_free in self.free_slots.iter().copied() {
@@ -351,5 +356,19 @@ mod tests {
         let slab2 = Slab::<u32>::new();
         let h = slab1.insert(1);
         slab2.get(&h);
+    }
+
+    #[test]
+    fn freelist_stays_sorted() {
+        let mut slab = Slab::<u32>::new();
+        let h1 = slab.insert(1);
+        let h2 = slab.insert(2);
+        let h3 = slab.insert(3);
+        let h4 = slab.insert(4);
+        let h5 = slab.insert(5);
+        for i in [h5, h3, h1, h2, h4] {
+            slab.remove(i);
+        }
+        assert_eq!(slab.free_slots, vec![1, 2, 3, 4, 5]);
     }
 }
