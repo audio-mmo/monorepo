@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use anyhow::{Context, Result};
 use arrayvec::ArrayVec;
@@ -95,23 +95,26 @@ impl Body {
     }
 }
 
-/// A reference to a  body.  This is a reference-counted handle which compares equal with handles that refer to the same body.
+/// A reference to a  body.  This is a reference-counted handle which compares
+/// equal with handles that refer to the same body.
 ///
-/// Keeps the world alive as well.
+/// the handle keeps an internal weak reference to a world.  If the world dies
+/// before the handle, all setters start doing nothing and all getters start
+/// erroring.
 pub struct BodyHandle {
     slab_handle: SlabHandle<Body>,
-    world: Rc<WorldInner>,
+    world: Weak<WorldInner>,
     world_tag: usize,
 }
 
 impl BodyHandle {
     /// Create a `BodyHandle`, incrementing the body's refcount.
-    pub(crate) fn new(world: Rc<WorldInner>, slab_handle: SlabHandle<Body>) -> BodyHandle {
+    pub(crate) fn new(world: &Rc<WorldInner>, slab_handle: SlabHandle<Body>) -> BodyHandle {
         world.get_body_mut(&slab_handle).refcount += 1;
         BodyHandle {
             slab_handle,
             world_tag: world.get_world_tag(),
-            world,
+            world: Rc::downgrade(world),
         }
     }
 
@@ -119,29 +122,38 @@ impl BodyHandle {
     ///
     /// Doesn't check collision. Just immediately moves the body.
     pub fn move_body(&mut self, new_center: &V2) {
-        self.world
-            .get_body_mut(&self.slab_handle)
-            .move_body(new_center)
+        if let Some(world) = self.world.upgrade() {
+            world.get_body_mut(&self.slab_handle).move_body(new_center)
+        }
     }
 
     /// Propose a movement for a body.
     pub fn propose_movement(&mut self, new_center: &V2) -> Result<()> {
-        self.world
-            .get_body_mut(&self.slab_handle)
-            .propose_movement(new_center)
+        if let Some(world) = self.world.upgrade() {
+            world
+                .get_body_mut(&self.slab_handle)
+                .propose_movement(new_center)?;
+        }
+
+        Ok(())
     }
 }
 
 impl Drop for BodyHandle {
     fn drop(&mut self) {
+        let world = match self.world.upgrade() {
+            Some(x) => x,
+            None => return,
+        };
+
         let will_delete = {
-            let mut body = self.world.get_body_mut(&self.slab_handle);
+            let mut body = world.get_body_mut(&self.slab_handle);
             body.refcount -= 1;
             body.refcount == 0
         };
         if will_delete {
             // We can't move, the borrow checker isn't smart enough.
-            self.world.remove_body(self.slab_handle.clone());
+            world.remove_body(self.slab_handle.clone());
         }
     }
 }
@@ -184,8 +196,11 @@ impl std::hash::Hash for BodyHandle {
 
 impl Clone for BodyHandle {
     fn clone(&self) -> BodyHandle {
-        let mut body = self.world.get_body_mut(&self.slab_handle);
-        body.refcount += 1;
+        if let Some(world) = self.world.upgrade() {
+            let mut body = world.get_body_mut(&self.slab_handle);
+            body.refcount += 1;
+        };
+
         BodyHandle {
             slab_handle: self.slab_handle.clone(),
             world: self.world.clone(),

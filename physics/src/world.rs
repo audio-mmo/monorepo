@@ -70,7 +70,7 @@ impl World {
 
     fn new_handle_from_body(&self, body: Body) -> BodyHandle {
         let h = self.inner.insert_body(body);
-        BodyHandle::new(self.inner.clone(), h)
+        BodyHandle::new(&self.inner, h)
     }
 
     pub fn new_aabb(&self, center: V2, width: f64, height: f64) -> Result<BodyHandle> {
