@@ -40,6 +40,15 @@ impl<T> Clone for SlabHandle<T> {
     }
 }
 
+impl<T> SlabHandle<T> {
+    /// Get a value which will compare equal if two handles compare equal based
+    /// off their slot (but not based off their slab).  Guaranteed to be stable
+    /// for the lifetime of the handle.
+    pub fn get_tag(&self) -> usize {
+        self.slot.get() as usize
+    }
+}
+
 /// A slab consists of a data vector whose first slot is never used, and a stack
 /// containing free entries.
 ///
