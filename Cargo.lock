@@ -13,6 +13,9 @@ dependencies = [
 [[package]]
 name = "ammo_nzslab"
 version = "0.1.0"
+dependencies = [
+ "proptest",
+]
 
 [[package]]
 name = "ammo_physics"

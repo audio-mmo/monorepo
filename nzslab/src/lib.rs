@@ -83,6 +83,7 @@ fn allocated_ranges<'a>(
 ) -> impl Iterator<Item = std::ops::Range<usize>> + 'a {
     let final_range = match freelist.last() {
         Some(x) if (*x as usize) < slab_len - 2 => Some((*x as usize + 1)..slab_len),
+        None if slab_len > 1 => Some(1..slab_len),
         _ => None,
     };
 
@@ -234,6 +235,37 @@ impl<T> Slab<T> {
         let from_free = self.free_slots.len();
         from_cap + from_free
     }
+
+    /// Iterate over allocated slices in the slab.
+    pub fn iter_slices(&self) -> impl Iterator<Item = &[T]> {
+        // Functions to convert slices of `MaybeUninit` to slices of `T` are
+        // nightly-only; do it ourselves.
+        allocated_ranges(&self.free_slots[..], self.data.len()).map(move |range| {
+            // allocated_ranges never returns an empty range by design.
+            let len = range.end - range.start;
+            let ptr = self.data[range.start].as_ptr() as *const T;
+            unsafe { std::slice::from_raw_parts(ptr, len) }
+        })
+    }
+
+    /// Iterate over slices in this slab, mutably.
+    pub fn iter_slices_mut(&mut self) -> impl Iterator<Item = &mut [T]> {
+        let data = &self.data;
+        let freelist = &self.free_slots;
+        allocated_ranges(&freelist[..], data.len()).map(move |range| {
+            let ptr = data[range.start].as_ptr() as *mut T;
+            let len = range.end - range.start;
+            unsafe { std::slice::from_raw_parts_mut(ptr, len) }
+        })
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.iter_slices().flat_map(|x| x.iter())
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.iter_slices_mut().flat_map(|x| x.iter_mut())
+    }
 }
 
 impl<T> Drop for Slab<T> {
@@ -257,6 +289,8 @@ mod tests {
     use super::*;
 
     use std::sync::Mutex;
+
+    use proptest::prelude::*;
 
     #[test]
     fn basic() {
@@ -394,5 +428,42 @@ mod tests {
             slab.remove(i);
         }
         assert_eq!(slab.free_slots, vec![1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_iteration_full() {
+        let vals = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let mut slab = Slab::<u32>::new();
+        for i in vals.iter() {
+            let _ = slab.insert(*i);
+        }
+        let res_iter = slab.iter().copied().collect::<Vec<_>>();
+        let res_iter_mut = slab.iter_mut().map(|x| *x).collect::<Vec<_>>();
+        let expected = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        assert_eq!(res_iter, expected);
+        assert_eq!(res_iter_mut, expected);
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100000))]
+        #[test]
+        fn test_iteration_fuzz(
+            // A vec indicating which slots to delete.
+            slots in prop::collection::vec(prop::bool::ANY, 0..20),
+        ) {
+            let mut slab = Slab::<usize>::new();
+            for (i, slot) in slots.iter().enumerate() {
+                let h = slab.insert(i);
+                if !slot {
+                    slab.remove(h);
+                }
+            }
+
+            let expected = slots.iter().enumerate().filter(|(_, s)| **s).map(|x| x.0).collect::<Vec<_>>();
+            let got = slab.iter().copied().collect::<Vec<_>>();
+            let got_mut = slab.iter_mut().map(|x| *x).collect::<Vec<_>>();
+            prop_assert_eq!(got, expected.clone());
+            prop_assert_eq!(got_mut, expected);
+        }
     }
 }
