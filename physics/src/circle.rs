@@ -30,6 +30,15 @@ impl Circle {
         let p2 = V2::new(self.center.x + self.radius, self.center.y + self.radius);
         Aabb::from_points(p1, p2).expect("This internal logic should never fail")
     }
+
+    /// MOve the circle to a new position.
+    #[must_use = "This doesn't mutate the Circle in-place"]
+    pub fn move_circle(&self, new_center: &V2) -> Circle {
+        Circle {
+            center: *new_center,
+            radius: self.radius,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -47,5 +56,14 @@ mod tests {
         assert_relative_eq!(b.get_p2().x, 3.0);
         assert_relative_eq!(b.get_p2().y, 3.0);
         Ok(())
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn move_circle() {
+        let c1 = Circle::new(V2::new(1.0, 2.0), 5.0).unwrap();
+        let c2 = c1.move_circle(&V2::new(10.0, 15.0));
+        assert_eq!(c2.center, V2::new(10.0, 15.0));
+        assert_eq!(c2.radius, 5.0);
     }
 }
