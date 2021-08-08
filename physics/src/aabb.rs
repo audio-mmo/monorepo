@@ -5,6 +5,13 @@ use crate::*;
 
 /// An axis-aligned bounding box is specified by 2 points `p1` and `p2`, such
 /// that `p1.x <= p2.x && p1.y <= p2.y`.
+///
+/// It is tempting to make the authoritative representation be a center and
+/// half-width pair, but this doesn't work: floating point inaccuracies mean
+/// that when using this as a bounding box, the box can be slightly too small.
+/// There are tests in `ray.rs`, for example, which fail because the bounding
+/// box *doesn't contain the starting point of the ray* with such a
+/// representation.  
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 pub struct Aabb {
     p1: V2,
