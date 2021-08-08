@@ -145,7 +145,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(1000000))]
+        #![proptest_config(ProptestConfig::with_cases(100000))]
         #[test]
         fn hit_fuzz(
             // Positions of the center and size of the box.

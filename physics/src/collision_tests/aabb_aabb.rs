@@ -46,7 +46,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(1000000))]
+        #![proptest_config(ProptestConfig::with_cases(100000))]
         #[test]
         fn fuzz(x1 in -1000.0..=1000.0f64,
             x2 in -1000.0..=1000.0f64,
@@ -79,7 +79,7 @@ mod tests {
 
     // Does swapping the arguments always yield the same result?
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(1000000))]
+        #![proptest_config(ProptestConfig::with_cases(100000))]
         #[test]
         fn test_symmetry(x1 in -1000.0..=1000.0f64,
             x2 in -1000.0..=1000.0f64,
