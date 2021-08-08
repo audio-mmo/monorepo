@@ -6,6 +6,7 @@ version = 3
 name = "ammo_chunked_grid"
 version = "0.1.0"
 dependencies = [
+ "ammo_nzslab",
  "proptest",
 ]
 

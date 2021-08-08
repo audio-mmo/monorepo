@@ -1,6 +1,7 @@
 //! A grid of `u32`.
 //!
 //! This is a HashMap of `Chunk`s.
+use ammo_nzslab::{Slab, SlabHandle};
 use std::collections::HashMap;
 
 use crate::chunk::Chunk;
@@ -9,13 +10,15 @@ use crate::write_destination::*;
 // Don't derive debug because nothing good can ever come from printing gigabytes of text in the common case.
 #[derive(Default)]
 pub struct Grid {
-    chunks: HashMap<ChunkId, Chunk>,
+    chunks: HashMap<ChunkId, SlabHandle<Chunk>>,
+    chunk_slab: Slab<Chunk>,
 }
 
 impl Grid {
     pub fn new() -> Grid {
         Grid {
             chunks: Default::default(),
+            chunk_slab: Default::default(),
         }
     }
 
@@ -24,17 +27,21 @@ impl Grid {
         let dest = WriteDestination::from_coords(x, y);
         self.chunks
             .get(&dest.chunk)
-            .map(|x| x.read(dest.x, dest.y))
+            .map(|x| self.chunk_slab.get(x).read(dest.x, dest.y))
             .unwrap_or(0)
     }
 
     /// Write a location in the grid, returning the old value.
     pub fn write(&mut self, x: i64, y: i64, value: u32) -> u32 {
         let dest = WriteDestination::from_coords(x, y);
-        self.chunks
+        // The borrow checker needs help here.
+        let chunks_map = &mut self.chunks;
+        let chunk_slab = &mut self.chunk_slab;
+        let ch = chunks_map
             .entry(dest.chunk)
-            .or_insert_with(|| Chunk::new(0))
-            .write(dest.x, dest.y, value)
+            .or_insert_with(|| chunk_slab.insert(Chunk::new(0)));
+        let chunk = chunk_slab.get_mut(ch);
+        chunk.write(dest.x, dest.y, value)
     }
 }
 
