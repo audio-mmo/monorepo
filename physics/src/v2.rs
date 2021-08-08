@@ -40,3 +40,108 @@ impl V2 {
         self.distance_squared(other).sqrt()
     }
 }
+
+impl std::ops::Add for V2 {
+    type Output = V2;
+
+    fn add(self, rhs: V2) -> V2 {
+        V2 {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
+    }
+}
+
+impl std::ops::AddAssign for V2 {
+    fn add_assign(&mut self, rhs: Self) {
+        self.x += rhs.x;
+        self.y += rhs.y;
+    }
+}
+
+impl std::ops::Mul<f64> for V2 {
+    type Output = V2;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        V2 {
+            x: self.x * rhs,
+            y: self.y * rhs,
+        }
+    }
+}
+
+impl std::ops::Mul<f32> for V2 {
+    type Output = V2;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        self * (rhs as f64)
+    }
+}
+
+impl std::ops::MulAssign<f64> for V2 {
+    fn mul_assign(&mut self, rhs: f64) {
+        *self = *self * rhs;
+    }
+}
+
+impl std::ops::MulAssign<f32> for V2 {
+    fn mul_assign(&mut self, rhs: f32) {
+        *self *= rhs as f64;
+    }
+}
+
+impl std::ops::Div<f64> for V2 {
+    type Output = V2;
+
+    fn div(self, rhs: f64) -> Self::Output {
+        V2 {
+            x: self.x / rhs,
+            y: self.y / rhs,
+        }
+    }
+}
+
+impl std::ops::DivAssign<f64> for V2 {
+    fn div_assign(&mut self, rhs: f64) {
+        *self = *self / rhs;
+    }
+}
+
+impl std::ops::Div<f32> for V2 {
+    type Output = V2;
+
+    fn div(self, rhs: f32) -> Self::Output {
+        self / (rhs as f64)
+    }
+}
+
+impl std::ops::DivAssign<f32> for V2 {
+    fn div_assign(&mut self, rhs: f32) {
+        *self /= rhs as f64;
+    }
+}
+
+impl std::ops::Neg for V2 {
+    type Output = V2;
+
+    fn neg(self) -> Self::Output {
+        V2 {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
+}
+
+impl std::ops::Sub for V2 {
+    type Output = V2;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self + -rhs
+    }
+}
+
+impl std::ops::SubAssign for V2 {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
+    }
+}
