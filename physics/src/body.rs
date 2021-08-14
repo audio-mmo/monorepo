@@ -10,12 +10,18 @@ use crate::*;
 /// The number of proposed movements allowed per iteration.
 const MAX_PROPOSED_MOVEMENTS: usize = 3;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ProposedMovement {
     /// The absolute position to move the body to.
-    new_position: V2,
+    pub(crate) new_position: V2,
     /// A usize value which can be used to link this movement to user-defined data.
-    user_id: usize,
+    pub(crate) user_id: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct MovementResult {
+    pub new_position: V2,
+    pub user_id: usize,
 }
 
 impl ProposedMovement {
@@ -41,11 +47,12 @@ impl ProposedMovement {
 /// The external type to interact with bodies is actually the [BodyHandle], which refers to a body.
 #[derive(Debug)]
 pub(crate) struct Body {
-    position: V2,
-    shape: Shape,
-    proposed_movements: ArrayVec<ProposedMovement, MAX_PROPOSED_MOVEMENTS>,
+    pub(crate) position: V2,
+    pub(crate) shape: Shape,
+    pub(crate) proposed_movements: ArrayVec<ProposedMovement, MAX_PROPOSED_MOVEMENTS>,
+    pub(crate) movement_results: ArrayVec<MovementResult, MAX_PROPOSED_MOVEMENTS>,
     /// Starts at 0. Incremented when handles are created.
-    refcount: usize,
+    pub(crate) refcount: usize,
 }
 
 impl Body {
@@ -56,6 +63,7 @@ impl Body {
             position: center,
             shape: aabb.into(),
             proposed_movements: Default::default(),
+            movement_results: Default::default(),
             // Not a mistake: starts at 0 until wrapped in a handle.
             refcount: 0,
         })
@@ -67,6 +75,7 @@ impl Body {
             position: center,
             shape: c.into(),
             proposed_movements: Default::default(),
+            movement_results: Default::default(),
             // Not a mistake: start at 0 until wrapped in a handle.
             refcount: 0,
         })

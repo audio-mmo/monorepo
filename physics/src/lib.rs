@@ -4,6 +4,7 @@
 extern crate anyhow;
 
 mod aabb;
+mod b2b_resolver;
 mod body;
 mod circle;
 mod collision_tests;
@@ -15,6 +16,7 @@ mod v2;
 mod world;
 
 pub use aabb::*;
+pub use b2b_resolver::*;
 pub use body::*;
 pub use circle::*;
 pub use ray::*;
