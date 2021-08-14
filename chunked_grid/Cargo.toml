@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 ammo_nzslab = { path = "../nzslab" }
+ammo_cached_hash_map = { path = "../cached_hash_map" }
 
 [dev-dependencies]
 proptest = "1.0.0"

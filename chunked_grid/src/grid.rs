@@ -1,8 +1,8 @@
 //! A grid of `u32`.
 //!
 //! This is a HashMap of `Chunk`s.
+use ammo_cached_hash_map::CachedHashMap;
 use ammo_nzslab::{Slab, SlabHandle};
-use std::collections::HashMap;
 
 use crate::chunk::Chunk;
 use crate::write_destination::*;
@@ -10,7 +10,7 @@ use crate::write_destination::*;
 // Don't derive debug because nothing good can ever come from printing gigabytes of text in the common case.
 #[derive(Default)]
 pub struct Grid {
-    chunks: HashMap<ChunkId, SlabHandle<Chunk>>,
+    chunks: CachedHashMap<ChunkId, SlabHandle<Chunk>>,
     chunk_slab: Slab<Chunk>,
 }
 
@@ -26,7 +26,7 @@ impl Grid {
     pub fn read(&self, x: i64, y: i64) -> u32 {
         let dest = WriteDestination::from_coords(x, y);
         self.chunks
-            .get(&dest.chunk)
+            .get_cached(&dest.chunk)
             .map(|x| self.chunk_slab.get(x).read(dest.x, dest.y))
             .unwrap_or(0)
     }
@@ -37,7 +37,8 @@ impl Grid {
         // The borrow checker needs help here.
         let chunks_map = &mut self.chunks;
         let chunk_slab = &mut self.chunk_slab;
-        let ch = chunks_map
+        let mut inner = chunks_map.get_inner_mut();
+        let ch = inner
             .entry(dest.chunk)
             .or_insert_with(|| chunk_slab.insert(Chunk::new(0)));
         let chunk = chunk_slab.get_mut(ch);
@@ -47,6 +48,8 @@ impl Grid {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use proptest::prelude::*;
 
     use super::*;
