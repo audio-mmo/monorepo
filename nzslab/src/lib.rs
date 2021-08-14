@@ -250,10 +250,10 @@ impl<T> Slab<T> {
 
     /// Iterate over slices in this slab, mutably.
     pub fn iter_slices_mut(&mut self) -> impl Iterator<Item = &mut [T]> {
-        let data = &self.data;
+        let data = &mut self.data;
         let freelist = &self.free_slots;
         allocated_ranges(&freelist[..], data.len()).map(move |range| {
-            let ptr = data[range.start].as_ptr() as *mut T;
+            let ptr = data[range.start].as_mut_ptr() as *mut T;
             let len = range.end - range.start;
             unsafe { std::slice::from_raw_parts_mut(ptr, len) }
         })

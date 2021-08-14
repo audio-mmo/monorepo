@@ -14,8 +14,6 @@ const MAX_PROPOSED_MOVEMENTS: usize = 3;
 pub struct ProposedMovement {
     /// The absolute position to move the body to.
     new_position: V2,
-    /// Was this movement modified by the resolving algorithm?
-    modified: bool,
     /// A usize value which can be used to link this movement to user-defined data.
     user_id: usize,
 }
@@ -24,18 +22,12 @@ impl ProposedMovement {
     pub fn new_with_id(new_position: &V2, id: usize) -> ProposedMovement {
         ProposedMovement {
             new_position: *new_position,
-            modified: false,
             user_id: id,
         }
     }
 
     pub fn new(new_position: &V2) -> ProposedMovement {
         ProposedMovement::new_with_id(new_position, 0)
-    }
-
-    /// Was this movement modified?
-    pub fn was_modified(&self) -> bool {
-        self.modified
     }
 
     /// Get the id associated with this `ProposedMovement`.
