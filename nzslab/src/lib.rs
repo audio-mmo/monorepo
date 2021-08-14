@@ -266,14 +266,47 @@ impl<T> Slab<T> {
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.iter_slices_mut().flat_map(|x| x.iter_mut())
     }
-}
 
-impl<T> Drop for Slab<T> {
-    fn drop(&mut self) {
+    pub fn clear(&mut self) {
         let indices = allocated_ranges(&self.free_slots[..], self.data.len()).flatten();
         for ind in indices {
             unsafe { std::ptr::drop_in_place(self.data[ind as usize].as_mut_ptr()) };
         }
+        self.free_slots.clear();
+        self.data.clear();
+    }
+
+    /// Convert a slice of `SlabHandle` to an iterator of mutable references to the slab's interior type.
+    ///
+    /// # Safety
+    ///
+    /// If the slice contains duplicate handles, undefined behavior via aliasing mutable references results.
+    pub unsafe fn slab_handles_to_mut_refs<'a>(
+        &'a mut self,
+        handles: &'a [SlabHandle<T>],
+    ) -> impl Iterator<Item = &'a mut T> {
+        // In debug builds, check our safety.
+        #[cfg(any(debug, test))]
+        {
+            let mut checking = handles.iter().map(|x| x.slot).collect::<Vec<_>>();
+            checking.sort_unstable();
+            checking.dedup();
+            assert_eq!(
+                checking.len(),
+                handles.len(),
+                "Slice contained multiple handles"
+            );
+        }
+
+        handles
+            .iter()
+            .map(move |x| unsafe { &mut *self.data[x.slot.get() as usize].as_mut_ptr() })
+    }
+}
+
+impl<T> Drop for Slab<T> {
+    fn drop(&mut self) {
+        self.clear();
     }
 }
 

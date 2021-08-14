@@ -9,7 +9,7 @@ use ammo_nzslab::{Slab, SlabHandle};
 use crate::*;
 
 pub(crate) struct WorldInner {
-    bodies: RefCell<Slab<Body>>,
+    pub(crate) bodies: RefCell<Slab<Body>>,
     /// Internal tag for the world, used to allow comparing `BodyHandle`.
     world_tag: usize,
 }

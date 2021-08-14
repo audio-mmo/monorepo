@@ -89,6 +89,19 @@ impl Aabb {
         let p2 = *new_center + half_dims;
         Aabb { p1, p2 }
     }
+
+    /// Dilate the AABB by the given multiple by multiplying the width and
+    /// height.
+    #[must_use = "Does not mutate in place"]
+    pub(crate) fn dilate(&self, multiple: f64) -> Aabb {
+        debug_assert!(multiple > 0.0);
+        let nw = self.get_half_width() * multiple;
+        let nh = self.get_half_height() * multiple;
+        let center = self.get_center();
+        let p1 = center - V2::new(nw, nh);
+        let p2 = center + V2::new(nw, nh);
+        Aabb::from_points(p1, p2).expect("If multiple is positive, this should always succeed")
+    }
 }
 
 #[cfg(test)]

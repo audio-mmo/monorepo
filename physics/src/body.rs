@@ -94,6 +94,29 @@ impl Body {
             .try_push(proposed)
             .context("Too many proposed movements")
     }
+
+    pub(crate) fn get_bounding_box(&self) -> Aabb {
+        let shape_aabb = self.shape.get_bounding_box();
+        let xs = [shape_aabb.get_p1().x, shape_aabb.get_p2().x];
+        let ys = [shape_aabb.get_p1().y, shape_aabb.get_p2().y];
+
+        let x_i = || {
+            xs.iter()
+                .copied()
+                .chain(self.proposed_movements.iter().map(|x| x.new_position.x))
+        };
+        let y_i = || {
+            ys.iter()
+                .copied()
+                .chain(self.proposed_movements.iter().map(|x| x.new_position.y))
+        };
+        let min_x = x_i().reduce(|a, b| a.min(b)).unwrap();
+        let max_x = x_i().reduce(|a, b| a.max(b)).unwrap();
+        let min_y = y_i().reduce(|a, b| a.min(b)).unwrap();
+        let max_y = y_i().reduce(|a, b| a.max(b)).unwrap();
+        Aabb::from_points(V2::new(min_x, min_y), V2::new(max_x, max_y))
+            .expect("Internal AABB building should always succeed")
+    }
 }
 
 /// A reference to a  body.  This is a reference-counted handle which compares
@@ -137,6 +160,18 @@ impl BodyHandle {
         }
 
         Ok(())
+    }
+
+    fn with_body_or_fail<T>(&self, cb: impl Fn(&Body) -> T) -> Result<T> {
+        if let Some(world) = self.world.upgrade() {
+            Ok(cb(&world.get_body(&self.slab_handle)))
+        } else {
+            Err(anyhow::anyhow!("This handle's world has died"))
+        }
+    }
+
+    pub fn get_bounding_box(&self) -> Result<Aabb> {
+        self.with_body_or_fail(|x| x.get_bounding_box())
     }
 }
 

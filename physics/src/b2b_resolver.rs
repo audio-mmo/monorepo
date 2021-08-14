@@ -79,7 +79,9 @@ fn check_body_pair(b1: &Body, b2: &Body) -> (usize, usize) {
 ///
 /// Used as the backend after the spatial hash is built.  The slices should be
 /// all bodies which can possibly interact.
-fn collide_slice(bodies: &mut [&mut Body]) {
+///
+/// The double reference is because of how this is called from the broad phase; since the broad phase algorithm is the only consumer, we let the types be weird.
+pub(crate) fn collide_slice(bodies: &mut [&mut &mut Body]) {
     let mut keep_going = true;
     let slice_len = bodies.len();
 

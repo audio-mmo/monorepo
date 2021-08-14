@@ -77,6 +77,14 @@ impl<T: Clone> SpatialHash<T> {
             .filter_map(move |coord| self.entries.get(&coord))
             .flat_map(|e| e.iter())
     }
+
+    pub fn clear(&mut self) {
+        self.entries.clear();
+    }
+
+    pub fn iter_all_possible_collisions(&self) -> impl Iterator<Item = &[T]> {
+        self.entries.values().map(|x| &x[..])
+    }
 }
 
 #[cfg(test)]
