@@ -99,3 +99,58 @@ impl<K: Copy + Eq, V: Copy + Eq, const ENTRIES: usize> Default
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_internal_vec<const SIZE: usize>(
+        l: &SelfOrganizingList<usize, usize, SIZE>,
+    ) -> Vec<(usize, usize)> {
+        unsafe {
+            (*l.entries.get())
+                .iter()
+                .map(|x| (x.key, x.value))
+                .collect()
+        }
+    }
+
+    #[test]
+    fn test_add_to_cache() {
+        let l = SelfOrganizingList::<usize, usize, 5>::new();
+        l.add_to_cache(1, 2);
+        l.add_to_cache(2, 4);
+        l.add_to_cache(3, 6);
+        l.add_to_cache(4, 8);
+        l.add_to_cache(5, 10);
+        assert_eq!(
+            get_internal_vec(&l),
+            vec![(1, 2), (2, 4), (3, 6), (4, 8), (5, 10)]
+        );
+        l.add_to_cache(11, 22);
+        assert_eq!(
+            get_internal_vec(&l),
+            vec![(1, 2), (2, 4), (3, 6), (4, 8), (11, 22)]
+        );
+    }
+
+    #[test]
+    fn test_transposing() {
+        let l = SelfOrganizingList::<usize, usize, 5>::new();
+        l.add_to_cache(1, 2);
+        l.add_to_cache(2, 4);
+        l.add_to_cache(3, 6);
+        l.add_to_cache(4, 8);
+        l.add_to_cache(5, 10);
+        assert_eq!(
+            get_internal_vec(&l),
+            vec![(1, 2), (2, 4), (3, 6), (4, 8), (5, 10)]
+        );
+        assert_eq!(
+            get_internal_vec(&l),
+            vec![(1, 2), (2, 4), (3, 6), (4, 8), (11, 22)]
+        );
+        assert_eq!(l.read_cache(&3), Some(6));
+        assert_eq!(get_internal_vec(&l), vec![(3, 6), (1, 2), (4, 8), (5, 10)]);
+    }
+}
