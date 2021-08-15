@@ -7,3 +7,13 @@ members = [
     "physics",
     "self_organizing_list",
 ]
+
+
+[profile.bench]
+lto = true
+panic = "abort"
+
+[profile.release]
+lto = true
+panic = "abort"
+
