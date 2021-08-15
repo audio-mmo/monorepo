@@ -1,7 +1,7 @@
 //?! A self-organizing list to accelerate linear searches when caching.
 //!
 //! See [Wikipedia](https://en.wikipedia.org/wiki/Self-organizing_list) for an
-//! overview.  We implement move-to-front.
+//! overview.  We implement transpose.
 //!
 //! Note that the primary indirect consumer is `ChunkedGrid`, and many
 //! assumptions here are made with that in mind.
@@ -21,14 +21,17 @@ pub struct SelfOrganizingList<K, V, const ENTRIES: usize> {
 }
 
 #[inline(always)]
-fn move_to_front<T: Copy>(slice: &mut [T], index: usize) {
+fn transpose<T: Copy>(slice: &mut [T], index: usize) {
+    if index == 0 {
+        return;
+    }
+
     debug_assert!(index < slice.len());
     unsafe {
-        let new_front = *slice.get_unchecked(index);
-        for i in (1..=index).rev() {
-            *slice.get_unchecked_mut(i) = *slice.get_unchecked(i - 1);
-        }
-        *slice.get_unchecked_mut(0) = new_front;
+        let e1 = *slice.get_unchecked(index - 1);
+        let e2 = *slice.get_unchecked(index);
+        *slice.get_unchecked_mut(index - 1) = e2;
+        *slice.get_unchecked_mut(index) = e1;
     }
 }
 
@@ -47,8 +50,9 @@ impl<K: Copy + Eq, V: Copy + Eq, const ENTRIES: usize> SelfOrganizingList<K, V, 
             let len = slice.len();
             for i in 0..len {
                 if &slice.get_unchecked(i).key == key {
-                    move_to_front(slice, i);
-                    return Some(slice.get_unchecked(0).value);
+                    let ret = Some(slice.get_unchecked(i).value);
+                    transpose(slice, i);
+                    return ret;
                 }
             }
         }
@@ -145,12 +149,12 @@ mod tests {
         assert_eq!(l.read_cache(&3), Some(6));
         assert_eq!(
             get_internal_vec(&l),
-            vec![(3, 6), (1, 2), (2, 4), (4, 8), (5, 10)]
+            vec![(1, 2), (3, 6), (2, 4), (4, 8), (5, 10)]
         );
         assert_eq!(l.read_cache(&5), Some(10));
         assert_eq!(
             get_internal_vec(&l),
-            vec![(5, 10), (3, 6), (1, 2), (2, 4), (4, 8)]
+            vec![(1, 2), (3, 6), (2, 4), (5, 10), (4, 8)]
         );
     }
 }
