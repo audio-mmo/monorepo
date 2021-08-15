@@ -23,7 +23,13 @@ pub struct SelfOrganizingList<K, V, const ENTRIES: usize> {
 #[inline(always)]
 fn move_to_front<T: Copy>(slice: &mut [T], index: usize) {
     debug_assert!(index < slice.len());
-    slice[..=index].rotate_right(1);
+    unsafe {
+        let new_front = *slice.get_unchecked(index);
+        for i in (1..=index).rev() {
+            *slice.get_unchecked_mut(i) = *slice.get_unchecked(i - 1);
+        }
+        *slice.get_unchecked_mut(0) = new_front;
+    }
 }
 
 impl<K: Copy + Eq, V: Copy + Eq, const ENTRIES: usize> SelfOrganizingList<K, V, ENTRIES> {
