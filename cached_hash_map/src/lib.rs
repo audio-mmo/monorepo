@@ -16,7 +16,7 @@ use std::ops::{Deref, DerefMut};
 use ammo_self_organizing_list::*;
 
 /// Currently defaults for generic parameters are experimental so we must hardcode.
-const CACHE_SIZE: usize = 3;
+const CACHE_SIZE: usize = 5;
 
 pub struct CachedHashMap<K, V> {
     inner: HashMap<K, V, ahash::RandomState>,
