@@ -13,15 +13,14 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
 
-struct HashCache<K, V> {
-    key: K,
-    value: *const V,
-}
+use ammo_self_organizing_list::*;
+
+/// Currently defaults for generic parameters are experimental so we must hardcode.
+const CACHE_SIZE: usize = 3;
 
 pub struct CachedHashMap<K, V> {
     inner: HashMap<K, V, ahash::RandomState>,
-    cache: UnsafeCell<Option<HashCache<K, V>>>,
-    has_mut_borrow: bool,
+    cache: UnsafeCell<SelfOrganizingList<K, *const V, CACHE_SIZE>>,
 }
 
 pub struct CachedBorrowMut<'a, K, V> {
@@ -32,45 +31,38 @@ impl<K: Eq + Copy + Hash, V> CachedHashMap<K, V> {
     pub fn new() -> CachedHashMap<K, V> {
         CachedHashMap {
             inner: Default::default(),
-            cache: UnsafeCell::new(None),
-            has_mut_borrow: false,
+            cache: UnsafeCell::new(Default::default()),
         }
     }
 
     fn get_cached_ptr(&self, key: &K) -> Option<*const V> {
         unsafe {
-            match &*self.cache.get() {
-                Some(c) if !self.has_mut_borrow && &c.key == key => Some(c.value),
-                _ => {
-                    let nk = self.inner.get(key)?;
-                    if !self.has_mut_borrow {
-                        *self.cache.get() = Some(HashCache {
-                            key: *key,
-                            value: nk as *const V,
-                        });
-                    }
-                    Some(nk as *const V)
-                }
-            }
+            let cache = self.cache.get();
+            (*cache).read_or_insert(key, |_| {
+                let r = self.inner.get(key)?;
+                Some(r as *const V)
+            })
         }
     }
 
     /// Override of [HashMap::get] which tries the cache first.
+    #[inline]
     pub fn get_cached(&self, key: &K) -> Option<&V> {
         Some(unsafe { &*(self.get_cached_ptr(key)?) })
     }
 
+    #[inline]
     pub fn get_cached_mut(&mut self, key: &K) -> Option<&mut V> {
         Some(unsafe { &mut *(self.get_cached_ptr(key)? as *mut V) })
     }
 
+    #[inline]
     pub fn get_inner(&self) -> &HashMap<K, V, ahash::RandomState> {
         &self.inner
     }
 
     pub fn get_inner_mut(&mut self) -> CachedBorrowMut<K, V> {
-        unsafe { *self.cache.get() = None };
-        self.has_mut_borrow = true;
+        unsafe { (*self.cache.get()).clear() };
         CachedBorrowMut { reference: self }
     }
 
@@ -80,7 +72,7 @@ impl<K: Eq + Copy + Hash, V> CachedHashMap<K, V> {
         }
 
         // First invalidate the cache:
-        *self.cache.get_mut() = None;
+        self.cache.get_mut().clear();
         self.inner.insert(*key, gen());
         self.get_cached_mut(key)
             .expect("Should contain a value because we just inserted it")
@@ -88,19 +80,13 @@ impl<K: Eq + Copy + Hash, V> CachedHashMap<K, V> {
 
     pub fn remove(&mut self, key: &K) {
         self.inner.remove(key);
-        *self.cache.get_mut() = None;
+        self.cache.get_mut().clear();
     }
 }
 
 impl<K: Copy + Hash + Eq, V> Default for CachedHashMap<K, V> {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl<'a, K, V> Drop for CachedBorrowMut<'a, K, V> {
-    fn drop(&mut self) {
-        self.reference.has_mut_borrow = false;
     }
 }
 

@@ -19,7 +19,7 @@ mod world;
 pub use aabb::*;
 pub(crate) use b2b_resolver::*;
 pub use body::*;
-pub(crate) use broad_phase::*;
+//pub(crate) use broad_phase::*;
 pub use circle::*;
 pub use ray::*;
 pub use raycasting::*;

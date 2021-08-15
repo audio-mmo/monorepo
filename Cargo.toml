@@ -1,3 +1,9 @@
 [workspace]
 
-members = ["cached_hash_map", "nzslab", "physics", "chunked_grid"]
+members = [
+    "cached_hash_map",
+    "chunked_grid",
+    "nzslab",
+    "physics",
+    "self_organizing_list",
+]
