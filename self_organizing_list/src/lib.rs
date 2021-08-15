@@ -48,12 +48,12 @@ impl<K: Copy + Eq, V: Copy + Eq, const ENTRIES: usize> SelfOrganizingList<K, V, 
         unsafe {
             let cur_cache = self.entries.get();
             let slice = &mut (*cur_cache)[..];
-            for i in 0..slice.len() {
-                if &slice.get_unchecked(i).key != key {
-                    continue;
+            let len = slice.len();
+            for i in 0..len {
+                if &slice.get_unchecked(i).key == key {
+                    move_to_front(slice, i);
+                    return Some(slice.get_unchecked(0).value);
                 }
-                move_to_front(slice, i);
-                return Some(slice.get_unchecked(0).value);
             }
         }
         None
