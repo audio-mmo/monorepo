@@ -53,7 +53,7 @@ impl<K: Copy + Eq, V: Copy + Eq, const ENTRIES: usize> SelfOrganizingList<K, V, 
                     continue;
                 }
                 move_to_front(slice, i);
-                return Some(slice[0].value);
+                return Some(slice.get_unchecked(0).value);
             }
         }
         None
@@ -67,7 +67,7 @@ impl<K: Copy + Eq, V: Copy + Eq, const ENTRIES: usize> SelfOrganizingList<K, V, 
             if (*cache).try_push(ent).is_ok() {
                 return;
             }
-            (*cache)[(*cache).len() - 1] = ent;
+            *(*cache).get_unchecked_mut((*cache).len() - 1) = ent;
         }
     }
 
