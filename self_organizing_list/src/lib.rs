@@ -22,10 +22,6 @@ pub struct SelfOrganizingList<K, V, const ENTRIES: usize> {
 
 #[inline(always)]
 fn move_to_front<T: Copy>(slice: &mut [T], index: usize) {
-    if index == 0 {
-        return;
-    }
-
     unsafe {
         debug_assert!(index < slice.len());
         let new_front = *slice.get_unchecked(index);
