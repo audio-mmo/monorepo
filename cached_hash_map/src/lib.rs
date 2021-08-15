@@ -60,6 +60,10 @@ impl<K: Eq + Copy + Hash, V> CachedHashMap<K, V> {
         Some(unsafe { &*(self.get_cached_ptr(key)?) })
     }
 
+    pub fn get_cached_mut(&mut self, key: &K) -> Option<&mut V> {
+        Some(unsafe { &mut *(self.get_cached_ptr(key)? as *mut V) })
+    }
+
     pub fn get_inner(&self) -> &HashMap<K, V, ahash::RandomState> {
         &self.inner
     }
@@ -68,6 +72,23 @@ impl<K: Eq + Copy + Hash, V> CachedHashMap<K, V> {
         unsafe { *self.cache.get() = None };
         self.has_mut_borrow = true;
         CachedBorrowMut { reference: self }
+    }
+
+    pub fn get_or_insert(&mut self, key: &K, mut gen: impl FnMut() -> V) -> &mut V {
+        if let Some(x) = self.get_cached_ptr(key) {
+            return unsafe { &mut *(x as *mut V) };
+        }
+
+        // First invalidate the cache:
+        *self.cache.get_mut() = None;
+        self.inner.insert(*key, gen());
+        self.get_cached_mut(key)
+            .expect("Should contain a value because we just inserted it")
+    }
+
+    pub fn remove(&mut self, key: &K) {
+        self.inner.remove(key);
+        *self.cache.get_mut() = None;
     }
 }
 
@@ -94,5 +115,41 @@ impl<'a, K, V> Deref for CachedBorrowMut<'a, K, V> {
 impl<'a, K, V> DerefMut for CachedBorrowMut<'a, K, V> {
     fn deref_mut(&mut self) -> &mut HashMap<K, V, ahash::RandomState> {
         &mut self.reference.inner
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use proptest::prelude::*;
+
+    use super::*;
+
+    proptest! {
+        // Generate some operations, and apply them to a raw HashMap and a
+        // CachedHashMap.  Then compare.
+        #[test]
+        fn test_against_hash(operations in prop::collection::vec(
+            // (operation, key, value) tuple.
+            // Operation is 0=read, 1=write, 2=remove.
+            (0..3u8, 0..500u32, 0..1000000u32),
+            0..1000,
+        )) {
+            let mut cached: CachedHashMap<u32, u32> = Default::default();
+            let mut good: HashMap<u32, u32, ahash::RandomState> = Default::default();
+
+            for (op, k, v) in operations {
+                if op == 0 {
+                    cached.get_inner_mut().insert(k, v);
+                    good.insert(k, v);
+                } else if op == 1 {
+                    prop_assert_eq!(cached.get_cached(&k), good.get(&k));
+                } else if op == 2 {
+                    cached.remove(&k);
+                    good.remove(&k);
+                }
+
+                prop_assert_eq!(&good, &cached.inner);
+            }
+        }
     }
 }

@@ -37,12 +37,8 @@ impl Grid {
         // The borrow checker needs help here.
         let chunks_map = &mut self.chunks;
         let chunk_slab = &mut self.chunk_slab;
-        let mut inner = chunks_map.get_inner_mut();
-        let ch = inner
-            .entry(dest.chunk)
-            .or_insert_with(|| chunk_slab.insert(Chunk::new(0)));
-        let chunk = chunk_slab.get_mut(ch);
-        chunk.write(dest.x, dest.y, value)
+        let ch = chunks_map.get_or_insert(&dest.chunk, || chunk_slab.insert(Chunk::new(0)));
+        chunk_slab.get_mut(ch).write(dest.x, dest.y, value)
     }
 }
 

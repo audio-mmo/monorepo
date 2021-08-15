@@ -18,6 +18,7 @@ name = "ammo_cached_hash_map"
 version = "0.1.0"
 dependencies = [
  "ahash",
+ "proptest",
 ]
 
 [[package]]

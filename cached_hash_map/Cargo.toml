@@ -7,3 +7,6 @@ edition = "2018"
 
 [dependencies]
 ahash = "0.7.4"
+
+[dev-dependencies]
+proptest = "1.0.0"
