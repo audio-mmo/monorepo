@@ -29,7 +29,7 @@ fn move_to_front<T: Copy>(slice: &mut [T], index: usize) {
     unsafe {
         debug_assert!(index < slice.len());
         let new_front = *slice.get_unchecked(index);
-        for i in 1..index {
+        for i in 1..=index {
             *slice.get_unchecked_mut(i) = *slice.get_unchecked(i - 1);
         }
         *slice.get_unchecked_mut(0) = new_front;
@@ -146,11 +146,7 @@ mod tests {
             get_internal_vec(&l),
             vec![(1, 2), (2, 4), (3, 6), (4, 8), (5, 10)]
         );
-        assert_eq!(
-            get_internal_vec(&l),
-            vec![(1, 2), (2, 4), (3, 6), (4, 8), (11, 22)]
-        );
         assert_eq!(l.read_cache(&3), Some(6));
-        assert_eq!(get_internal_vec(&l), vec![(3, 6), (1, 2), (4, 8), (5, 10)]);
+        assert_eq!(get_internal_vec(&l), vec![(3, 6), (1, 2), (2, 4), (4, 8), (5, 10)]);
     }
 }
