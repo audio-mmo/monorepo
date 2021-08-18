@@ -6,6 +6,7 @@ members = [
     "nzslab",
     "physics",
     "self_organizing_list",
+    "sparse_map",
 ]
 
 
