@@ -100,6 +100,15 @@ impl<K: Copy + Eq, V: Copy + Eq, const ENTRIES: usize> Default
     }
 }
 
+impl<K: Clone, V: Clone, const N: usize> Clone for SelfOrganizingList<K, V, N> {
+    fn clone(&self) -> Self {
+        let entries = unsafe { (*self.entries.get()).clone() };
+        SelfOrganizingList {
+            entries: UnsafeCell::new(entries),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

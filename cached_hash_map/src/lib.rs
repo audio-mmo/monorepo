@@ -108,6 +108,17 @@ impl<'a, K, V> DerefMut for CachedBorrowMut<'a, K, V> {
     }
 }
 
+impl<K: Clone, V: Clone> Clone for CachedHashMap<K, V> {
+    fn clone(&self) -> Self {
+        let inner = self.inner.clone();
+        let cache = unsafe { (*self.cache.get()).clone() };
+        Self {
+            inner,
+            cache: UnsafeCell::new(cache),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use proptest::prelude::*;
