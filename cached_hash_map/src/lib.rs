@@ -6,7 +6,7 @@
 //! When a mutable borrow is taken, the cache is invalidated until the next time
 //! there are only immutable references.  
 //!
-//! Finally, this hashmap uses ahash because it is already vulnerable to DOS:
+//! Finally, this hashmap uses a non-cryptographic hash because it is already vulnerable to DOS:
 //! reading different items is much slower than reading the same item.
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
@@ -15,11 +15,15 @@ use std::ops::{Deref, DerefMut};
 
 use ammo_self_organizing_list::*;
 
+// make the hasher easy to change by renaming it. Otherwise, we have to change
+// it in lots of places if we change the hashing algorithm.
+type Hasher = std::hash::BuildHasherDefault<rustc_hash::FxHasher>;
+
 /// Currently defaults for generic parameters are experimental so we must hardcode.
 const CACHE_SIZE: usize = 3;
 
 pub struct CachedHashMap<K, V> {
-    inner: HashMap<K, V, ahash::RandomState>,
+    inner: HashMap<K, V, Hasher>,
     cache: UnsafeCell<SelfOrganizingList<K, *const V, CACHE_SIZE>>,
 }
 
@@ -57,7 +61,7 @@ impl<K: Eq + Copy + Hash, V> CachedHashMap<K, V> {
     }
 
     #[inline]
-    pub fn get_inner(&self) -> &HashMap<K, V, ahash::RandomState> {
+    pub fn get_inner(&self) -> &HashMap<K, V, Hasher> {
         &self.inner
     }
 
@@ -91,15 +95,15 @@ impl<K: Copy + Hash + Eq, V> Default for CachedHashMap<K, V> {
 }
 
 impl<'a, K, V> Deref for CachedBorrowMut<'a, K, V> {
-    type Target = HashMap<K, V, ahash::RandomState>;
+    type Target = HashMap<K, V, Hasher>;
 
-    fn deref(&self) -> &HashMap<K, V, ahash::RandomState> {
+    fn deref(&self) -> &HashMap<K, V, Hasher> {
         &self.reference.inner
     }
 }
 
 impl<'a, K, V> DerefMut for CachedBorrowMut<'a, K, V> {
-    fn deref_mut(&mut self) -> &mut HashMap<K, V, ahash::RandomState> {
+    fn deref_mut(&mut self) -> &mut HashMap<K, V, Hasher> {
         &mut self.reference.inner
     }
 }
@@ -121,7 +125,7 @@ mod tests {
             0..1000,
         )) {
             let mut cached: CachedHashMap<u32, u32> = Default::default();
-            let mut good: HashMap<u32, u32, ahash::RandomState> = Default::default();
+            let mut good: HashMap<u32, u32, Hasher> = Default::default();
 
             for (op, k, v) in operations {
                 if op == 0 {
