@@ -53,6 +53,7 @@ dependencies = [
 name = "ammo_sparse_u32_map"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "proptest",
 ]
 
