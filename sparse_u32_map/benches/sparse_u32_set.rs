@@ -21,7 +21,7 @@ fn read_grouped(map: &SparseU32Map<u32>, size: usize) {
 
 pub fn benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("read");
-    for size in [1, 5, 10, 20, 50, 100, 500] {
+    for size in [1, 100, 500] {
         group.throughput(Throughput::Elements(MAP_KEY_COUNT * MAP_KEY_MUL));
         group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, size| {
             let map = build_map();

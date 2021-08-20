@@ -9,7 +9,7 @@
 // Must be a power of 2.
 const PAGE_SIZE: usize = 1 << 14;
 const PAGE_MASK: usize = !(PAGE_SIZE - 1);
-
+#[inline(always)]
 fn key_to_page_index(key: u32) -> (usize, usize) {
     let ind = key as usize;
     (ind & PAGE_MASK, ind & !PAGE_MASK)
@@ -50,15 +50,11 @@ impl<V> SparseU32Map<V> {
     }
 
     fn dense_index_for_key(&self, key: u32) -> Option<usize> {
-        if self.is_empty() {
-            return None;
-        }
-
         let (page, index) = key_to_page_index(key);
         let ind = self
             .sparse_keys
             .get(page)
-            .and_then(|x| x.as_ref()?.get(index))
+            .and_then(|x| unsafe { Some(x.as_ref()?.get_unchecked(index)) })
             .cloned()
             .unwrap_or(0) as usize;
         if self.dense_keys.get(ind) == Some(&key) {
@@ -74,7 +70,7 @@ impl<V> SparseU32Map<V> {
 
     pub fn get(&self, key: u32) -> Option<&V> {
         let ind = self.dense_index_for_key(key)?;
-        self.dense_values.get(ind)
+        Some(unsafe { self.dense_values.get_unchecked(ind) })
     }
 
     pub fn get_mut(&mut self, key: u32) -> Option<&mut V> {
