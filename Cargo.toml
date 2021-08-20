@@ -6,9 +6,8 @@ members = [
     "nzslab",
     "physics",
     "self_organizing_list",
-    "sparse_map",
+    "sparse_u32_map",
 ]
-
 
 [profile.bench]
 lto = true

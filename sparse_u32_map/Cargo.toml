@@ -1,9 +1,9 @@
 [package]
-name = "ammo_sparse_map"
+name = "ammo_sparse_u32_map"
 version = "0.1.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
-ammo_cached_hash_map = { path = "../cached_hash_map" }
+[dev-dependencies]
+proptest = "1.0.0"

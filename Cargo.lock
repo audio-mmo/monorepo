@@ -50,10 +50,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "ammo_sparse_map"
+name = "ammo_sparse_u32_map"
 version = "0.1.0"
 dependencies = [
- "ammo_cached_hash_map",
+ "proptest",
 ]
 
 [[package]]
