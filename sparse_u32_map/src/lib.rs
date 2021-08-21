@@ -5,17 +5,69 @@
 //! - The map iterates in insertion order as long as no deletes are performed,
 //!   and iteration of items added after the last delete are visited in sorted
 //!   order.
+use std::alloc::{alloc, Layout};
+use std::ptr::NonNull;
 
 // Must be a power of 2.
-const PAGE_SIZE: usize = 1 << 14;
+const PAGE_SIZE: usize = 1 << 15;
 const PAGE_MASK: usize = !(PAGE_SIZE - 1);
+
 #[inline(always)]
 fn key_to_page_index(key: u32) -> (usize, usize) {
     let ind = key as usize;
     (ind & PAGE_MASK, ind & !PAGE_MASK)
 }
 
-type Page = [u32; PAGE_SIZE];
+unsafe fn alloc_page() -> *mut u32 {
+    let layout = Layout::array::<u32>(PAGE_SIZE).unwrap();
+    alloc(layout) as *mut u32
+}
+
+struct Page {
+    inner: NonNull<u32>,
+}
+
+impl Page {
+    fn new() -> Page {
+        Page {
+            inner: unsafe { NonNull::new_unchecked(alloc_page()) },
+        }
+    }
+
+    fn read(&self, index: usize) -> u32 {
+        debug_assert!(index < PAGE_SIZE);
+        unsafe { *self.inner.as_ptr().add(index) }
+    }
+
+    fn write(&mut self, index: usize, value: u32) {
+        debug_assert!(index < PAGE_SIZE);
+        unsafe { *self.inner.as_ptr().add(index) = value };
+    }
+}
+
+impl Drop for Page {
+    fn drop(&mut self) {
+        unsafe {
+            std::alloc::dealloc(
+                self.inner.as_ptr() as *mut u8,
+                Layout::array::<u32>(PAGE_SIZE).unwrap(),
+            );
+        }
+    }
+}
+
+impl Clone for Page {
+    fn clone(&self) -> Page {
+        unsafe {
+            let np = alloc_page();
+
+            std::ptr::copy_nonoverlapping(self.inner.as_ptr(), np, PAGE_SIZE);
+            Self {
+                inner: NonNull::new_unchecked(np),
+            }
+        }
+    }
+}
 
 // See: https://research.swtch.com/sparse
 //
@@ -23,11 +75,11 @@ type Page = [u32; PAGE_SIZE];
 // `sparse[i]` where it thinks the element may be at, then comparing the element
 // in the set.
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SparseU32Map<V> {
     dense_keys: Vec<u32>,
     dense_values: Vec<V>,
-    sparse_keys: Vec<Option<Box<Page>>>,
+    sparse_keys: Vec<Option<Page>>,
 }
 
 impl<V> Default for SparseU32Map<V> {
@@ -54,8 +106,7 @@ impl<V> SparseU32Map<V> {
         let ind = self
             .sparse_keys
             .get(page)
-            .and_then(|x| unsafe { Some(x.as_ref()?.get_unchecked(index)) })
-            .cloned()
+            .and_then(|x| Some(x.as_ref()?.read(index)))
             .unwrap_or(0) as usize;
         if self.dense_keys.get(ind) == Some(&key) {
             Some(ind)
@@ -84,12 +135,10 @@ impl<V> SparseU32Map<V> {
         match self.sparse_keys.get_mut(page) {
             Some(Some(p)) => &mut *p,
             Some(x) => {
-                *x = Some(Box::new([0; PAGE_SIZE]));
-                &mut *x.as_deref_mut().unwrap()
+                *x = Some(Page::new());
+                x.as_mut().unwrap()
             }
-            _ => {
-                panic!("Couldn't find page after making vector big enough");
-            }
+            _ => unsafe { std::hint::unreachable_unchecked() },
         }
     }
 
@@ -112,7 +161,7 @@ impl<V> SparseU32Map<V> {
         };
 
         let page = self.ensure_page(page);
-        page[page_ind] = new_dense_ind as u32;
+        page.write(page_ind, new_dense_ind as u32);
         None
     }
 
@@ -123,11 +172,11 @@ impl<V> SparseU32Map<V> {
         let (p2, i2) = key_to_page_index(self.dense_keys[second]);
         if p1 == p2 {
             let page = self.ensure_page(p1);
-            page[i1] = first as u32;
-            page[i2] = second as u32;
+            page.write(i1, first as u32);
+            page.write(i2, second as u32);
         } else {
-            self.ensure_page(p1)[i1] = first as u32;
-            self.ensure_page(p2)[i2] = second as u32;
+            self.ensure_page(p1).write(i1, first as u32);
+            self.ensure_page(p2).write(i2, second as u32);
         }
     }
 
@@ -135,10 +184,14 @@ impl<V> SparseU32Map<V> {
         let dense_ind = self.dense_index_for_key(key)?;
         let end_ind = self.dense_keys.len() - 1;
         self.swap(dense_ind, end_ind);
-        self.dense_keys
-            .pop()
-            .expect("Should delete becasue the set isn't empty");
-        self.dense_values.pop()
+        match self.dense_keys.pop() {
+            Some(_) => (),
+            None => unsafe { std::hint::unreachable_unchecked() },
+        }
+        match self.dense_values.pop() {
+            Some(x) => Some(x),
+            None => unsafe { std::hint::unreachable_unchecked() },
+        }
     }
 
     pub fn keys<'a>(&'a self) -> impl Iterator<Item = &u32> + 'a {
