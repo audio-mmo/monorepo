@@ -93,7 +93,7 @@ impl<V> SparseU32Map<V> {
         }
     }
 
-    /// Returns the old value if any.
+    /// Returns the old value if any.r
     pub fn insert(&mut self, key: u32, value: V) -> Option<V> {
         let (page, page_ind) = key_to_page_index(key);
 
