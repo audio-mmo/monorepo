@@ -92,7 +92,7 @@ impl Mint {
         // If we haven't consumed the queue, do that now, then try again.
         if !has_consumed_queues {
             self.consume_incoming();
-            return self.generate_id_impl(false);
+            return self.generate_id_impl(true);
         }
 
         // If we got here, we did our best. Generate a fresh one.
@@ -107,5 +107,36 @@ impl Mint {
         if let Some(next) = id.next_version() {
             self.returned_ids.lock().unwrap().push(next);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mint() {
+        let mint = Mint::new(false);
+        let oids = (0..3).map(|_| mint.generate_id()).collect::<Vec<_>>();
+        assert_eq!(
+            oids,
+            vec![
+                ObjectId::new(0, 0, false),
+                ObjectId::new(1, 0, false),
+                ObjectId::new(2, 0, false)
+            ]
+        );
+        for i in oids.into_iter() {
+            mint.return_id(i);
+        }
+        let oids = (0..3).map(|_| mint.generate_id()).collect::<Vec<_>>();
+        assert_eq!(
+            oids,
+            vec![
+                ObjectId::new(2, 1, false),
+                ObjectId::new(1, 1, false),
+                ObjectId::new(0, 1, false)
+            ]
+        );
     }
 }
