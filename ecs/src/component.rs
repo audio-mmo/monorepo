@@ -1,7 +1,7 @@
 //?! The Component trait.
 //!
 //! The Component trait defines a component, under the standard ECS definition.
-//! UYniquely to us, components must also define a unique string namespace/pair
+//! Uniquely to us, components must also define a unique string namespace/pair
 //! and integer namespace/pair for serialization, networking, and other internal
 //! purposes.  See the documentation on the trait for more.
 use std::num::NonZeroU16;
@@ -9,13 +9,13 @@ use std::num::NonZeroU16;
 use serde::{de::DeserializeOwned, Serialize};
 
 #[derive(Copy, Clone, Debug, Ord, Eq, PartialOrd, PartialEq, Hash)]
-pub struct StringNamespace {
+pub struct StringComponentId {
     pub namespace: &'static str,
-    pub name: &'static str,
+    pub id: &'static str,
 }
 
 #[derive(Copy, Clone, Debug, Ord, Eq, PartialOrd, PartialEq, Hash)]
-pub struct IntegralNamespace {
+pub struct IntComponentId {
     pub namespace: NonZeroU16,
     pub id: u16,
 }
@@ -29,7 +29,7 @@ pub trait Component: Serialize + DeserializeOwned + Clone {
     ///
     /// If two components with the same namespace/name pairing are registered
     /// with the ECS, a panic results because this is programmer error.
-    fn get_string_namespace() -> StringNamespace
+    fn get_string_id() -> StringComponentId
     where
         Self: Sized;
 
@@ -41,23 +41,23 @@ pub trait Component: Serialize + DeserializeOwned + Clone {
     /// It is a large aid to efficiency and memory usage if namespaces and ids
     /// are as small as possible. Prefer to use the smallest namespace possible,
     /// and to number components sequentially from 0.
-    fn get_integral_namespace() -> IntegralNamespace
+    fn get_int_id() -> IntComponentId
     where
         Self: Sized;
 }
 
 /// A trait providing a blanket impl to add object-safe forms of the [Component] type-level metods, as well as other component helpers.
 pub trait ComponentExt: Component {
-    fn get_integral_namespace(&self) -> IntegralNamespace;
-    fn get_string_namespace(&self) -> StringNamespace;
+    fn get_int_id(&self) -> IntComponentId;
+    fn get_string_id(&self) -> StringComponentId;
 }
 
 impl<T: Component> ComponentExt for T {
-    fn get_integral_namespace(&self) -> IntegralNamespace {
-        Self::get_integral_namespace()
+    fn get_int_id(&self) -> IntComponentId {
+        Self::get_int_id()
     }
 
-    fn get_string_namespace(&self) -> StringNamespace {
-        Self::get_string_namespace()
+    fn get_string_id(&self) -> StringComponentId {
+        Self::get_string_id()
     }
 }
