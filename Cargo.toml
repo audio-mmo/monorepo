@@ -4,6 +4,7 @@ members = [
     "cached_hash_map",
     "chunked_grid",
     "ecs",
+    "ecs_derive",
     "nzslab",
     "physics",
     "self_organizing_list",

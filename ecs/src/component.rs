@@ -16,8 +16,8 @@ pub struct StringNamespace {
 
 #[derive(Copy, Clone, Debug, Ord, Eq, PartialOrd, PartialEq, Hash)]
 pub struct IntegralNamespace {
-    namespace: NonZeroU16,
-    component_id: u16,
+    pub namespace: NonZeroU16,
+    pub id: u16,
 }
 
 /// A component, for example an object position.
