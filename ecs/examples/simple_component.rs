@@ -9,6 +9,6 @@ struct Foo {
 
 fn main() {
     let c = Foo { bar: "hi".into() };
-    println!("{:?}", c.get_string_id());
-    println!("{:?}", c.get_int_id());
+    println!("{}", c.get_string_id());
+    println!("{}", c.get_int_id());
 }

@@ -8,6 +8,7 @@ edition = "2018"
 [dependencies]
 ammo_ecs_derive = { path = "../ecs_derive" }
 
+derive_more = "0.99.16"
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]

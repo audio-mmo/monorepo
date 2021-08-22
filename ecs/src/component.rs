@@ -6,15 +6,18 @@
 //! purposes.  See the documentation on the trait for more.
 use std::num::NonZeroU16;
 
+use derive_more::*;
 use serde::{de::DeserializeOwned, Serialize};
 
-#[derive(Copy, Clone, Debug, Ord, Eq, PartialOrd, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Display, Ord, Eq, PartialOrd, PartialEq, Hash)]
+#[display(fmt = "{}/{}", namespace, id)]
 pub struct StringComponentId {
     pub namespace: &'static str,
     pub id: &'static str,
 }
 
-#[derive(Copy, Clone, Debug, Ord, Eq, PartialOrd, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Display, Ord, Eq, PartialOrd, PartialEq, Hash)]
+#[display(fmt = "(namespace={}, id={})", namespace, id)]
 pub struct IntComponentId {
     pub namespace: NonZeroU16,
     pub id: u16,
