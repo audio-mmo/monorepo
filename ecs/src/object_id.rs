@@ -1,62 +1,61 @@
 //! The [ObjectId] type.
 //!
-//! Objects are represented by a version, a unique identifier, and an ephemeral
-//! bit.  The version and unique identifier make up the runtime identity of an
-//! object, while the ephemeral bit is used for loading areas and similar into
-//! the world.  Internally, the unique identifier is used as an index into a
-//! variety of sets and maps, while the version is used to detect object reuse.
+//! Objects are represented by a 127-bit uniformly distributed random id, and a
+//! 1-bit ephemeral flag.  This is then split across 2 u64 fields, because while
+//! Rust supports 128-bit integers, these ids are their own 64-bit hashes.
 //!
-//! It is only possible to have `2^32 - 1` unique objects; `u32::MAX` is
-//! reserved as a sentinel for the future.
+//! Layout is `(ephemeral, upper, lower)` where ephemeral is the most
+//! significant bit of upper.
+//!
+//! Additionally upper is a `NonZeroU64` so that this can work well with
+//! `Option`.  To make that work we specifically check for it and replace it
+//! with 1, removing exactly 1 value from the 127 bits of randomness.
+//!
+//! This is an odd design for an ECS, but is justified by 3 factors: first, we
+//! don't need to be as fast as other implementations (e.g. no "let's do
+//! particle systems where every particle is an entity").  Second, we need
+//! unique ids across the network.  Third, we nee unique ids across potentially
+//! realtime years.  Let's kill the complexity of versions and kill the
+//! complexity of some auxiliary system to reference objects and just take the
+//! slight performance hit.
+use std::num::NonZeroU64;
 
 /// Mask to extract the ephemeral bit.
-const EPHEMERAL_MASK: u32 = 1 << 31;
+const EPHEMERAL_MASK: u64 = 1 << 63;
 
-#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Hash)]
+#[derive(Copy, Clone, Eq, Ord, PartialEq, PartialOrd, Hash)]
 pub struct ObjectId {
-    id: u32,
-    // High bit of version is the ephemeral bit.
-    version: u32,
+    upper: NonZeroU64,
+    lower: u64,
 }
 
 impl ObjectId {
-    pub(crate) fn new(id: u32, mut version: u32, ephemeral_bit: bool) -> ObjectId {
-        debug_assert_ne!(id, u32::MAX);
-        debug_assert_eq!(version & EPHEMERAL_MASK, 0);
-        if ephemeral_bit {
-            version |= EPHEMERAL_MASK;
+    pub(crate) fn new(ephemeral: bool, mut upper: u64, lower: u64) -> ObjectId {
+        upper &= !EPHEMERAL_MASK;
+        upper |= (ephemeral as u64) << 63;
+        if upper == 0 {
+            upper = 1;
         }
-        Self { id, version }
-    }
-
-    pub fn get_version(&self) -> u32 {
-        self.version & !EPHEMERAL_MASK
-    }
-
-    pub fn get_id(&self) -> u32 {
-        self.id
+        unsafe {
+            Self {
+                upper: NonZeroU64::new_unchecked(upper),
+                lower,
+            }
+        }
     }
 
     pub fn get_ephemeral_bit(&self) -> bool {
-        self.version & EPHEMERAL_MASK != 0
+        self.upper.get() & EPHEMERAL_MASK != 0
     }
+}
 
-    /// Returns whether this is the last time an object id of this version can be used because of wraparound in the version field.
-    pub fn is_final_version(&self) -> bool {
-        self.get_version() == u32::MAX >> 1
-    }
-
-    /// Generate a new `ObjectId` from this one with the same `id`.
-    pub(crate) fn next_version(&self) -> Option<ObjectId> {
-        if self.is_final_version() {
-            None
-        } else {
-            Some(ObjectId::new(
-                self.id,
-                self.get_version() + 1,
-                self.get_ephemeral_bit(),
-            ))
-        }
+impl std::fmt::Debug for ObjectId {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_struct("ObjectId")
+            .field("ephemeral", &self.get_ephemeral_bit())
+            .field("upper", &(self.upper.get() & !EPHEMERAL_MASK))
+            .field("lower", &self.lower)
+            .finish()
     }
 }
 
@@ -64,41 +63,20 @@ impl ObjectId {
 mod tests {
     use super::*;
 
-    use proptest::prelude::*;
-
     #[test]
-    fn simple_version_increment() {
-        let oid = ObjectId::new(1, 1, false);
-        let oid2 = oid.next_version().unwrap();
-        assert_eq!(oid2.version, 2);
+    fn ephemeral() {
+        let not_ephemeral = ObjectId::new(false, 1, 2);
+        assert_eq!(not_ephemeral.upper.get(), 1);
+        assert_eq!(not_ephemeral.lower, 2);
+        let ephemeral = ObjectId::new(true, 1, 2);
+        assert_eq!(ephemeral.upper.get(), 0x8000000000000001);
+        assert_eq!(ephemeral.lower, 2);
     }
 
     #[test]
-    fn ephemeral_version_increment() {
-        let oid = ObjectId::new(1, 1, true);
-        assert_eq!(oid.version, (1 << 31) + 1);
-        let oid2 = oid.next_version().unwrap();
-        assert_eq!(oid2.version, (1 << 31) + 2);
-    }
-
-    proptest! {
-        #[test]
-        fn decomposing(
-            id in 0..u32::MAX - 1,
-            version in 0..u32::MAX/2,
-            ephemeral_bit in prop::bool::ANY) {
-                let oid = ObjectId::new(id, version, ephemeral_bit);
-                prop_assert_eq!(oid.get_id(), id);
-                prop_assert_eq!(oid.get_version(), version);
-                prop_assert_eq!(oid.get_ephemeral_bit(), ephemeral_bit);
-            }
-    }
-
-    #[test]
-    fn version_increment_past_max() {
-        let oid = ObjectId::new(1, u32::MAX / 2, false);
-        assert_eq!(oid.next_version(), None);
-        let oid2 = ObjectId::new(1, u32::MAX / 2, true);
-        assert_eq!(oid2.next_version(), None);
+    fn no_accidental_ephemeral() {
+        let oid = ObjectId::new(false, 1 << 63, 2);
+        assert_eq!(oid.upper.get(), 1);
+        assert_eq!(oid.lower, 2);
     }
 }

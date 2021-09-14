@@ -28,6 +28,8 @@ dependencies = [
  "ammo_ecs_derive",
  "derive_more",
  "proptest",
+ "rand",
+ "rand_chacha",
  "serde",
 ]
 

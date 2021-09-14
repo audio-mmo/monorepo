@@ -1,141 +1,143 @@
-//! The [mint] produces object ids as needed, and accepts object ids back from anything else that may wish to return them.
+//! The [Mint] produces new object ids, either from a deterministic sequence or from a random number generator.
 //!
-//! This is a threadsafe object, which is typically global per process, unless the user is e.g. building ares with ephemeral ids.
-use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
-use std::sync::{Mutex, RwLock};
+//! The deterministic mode can be used in tests.
+use std::sync::Mutex;
 
 use crate::object_id::ObjectId;
 
+/// Hidden interior state of the mint, because if the enum is pub then so are the variants.
+#[derive(Debug)]
+enum MintInner {
+    /// Get the id from a random number generator.
+    Random,
+    /// Get the id from a  seeded random number generator.
+    SeededRandom(Box<Mutex<rand_chacha::ChaChaRng>>),
+    Deterministic(Mutex<u64>),
+}
+
+impl MintInner {
+    fn next(&self, ephemeral: bool) -> ObjectId {
+        use rand::prelude::*;
+
+        use MintInner::*;
+
+        let (upper, lower) = match self {
+            Random => {
+                let mut rng = rand::thread_rng();
+                (rng.gen::<u64>(), rng.gen::<u64>())
+            }
+            SeededRandom(r) => {
+                let mut g = r.lock().unwrap();
+                (g.gen::<u64>(), g.gen::<u64>())
+            }
+            Deterministic(counter) => {
+                let mut guard = counter.lock().unwrap();
+                // Increment first, thus never generating 0.
+                *guard += 1;
+                (0, *guard)
+            }
+        };
+
+        ObjectId::new(ephemeral, upper, lower)
+    }
+}
+
 #[derive(Debug)]
 pub struct Mint {
-    /// The next id we have yet to use.
-    next_free_id: AtomicU32,
-    /// Any object ids wich have been returned to us.  Only touched when an id
-    /// is returned, or when it's necessary to refill the available ids.  Prevents contention on the `RwLock`.
-    ///
-    /// The ids in this vec have already had their ids incremented.
-    returned_ids: Mutex<Vec<ObjectId>>,
-    /// Available ids for use by anyone asking for one.
-    ///
-    // The ids in this vec have already had their versions incremented.
-    available_ids: RwLock<Vec<ObjectId>>,
-    /// The current number of available ids.
-    num_available_ids: AtomicUsize,
-    /// Whether produced ids should be ephemeral.
     ephemeral: bool,
+    inner: MintInner,
 }
 
 impl Mint {
-    /// Create a [Mint].
-    ///
-    /// If `ephemeral` is true, returned ids will have their ephemeral bit set.
-    pub fn new(ephemeral: bool) -> Mint {
-        Self {
-            available_ids: RwLock::new(Vec::new()),
+    /// generate a new non-deterministic mint.  Returns concrete object ids.
+    pub fn new() -> Mint {
+        Self::new_ephemeral(false)
+    }
+
+    /// A mint that generates ids with the specified ephemeralness.
+    pub fn new_ephemeral(ephemeral: bool) -> Mint {
+        Mint {
             ephemeral,
-            num_available_ids: AtomicUsize::new(0),
-            next_free_id: AtomicU32::new(0),
-            returned_ids: Mutex::new(Vec::new()),
+            inner: MintInner::Random,
         }
     }
 
-    /// Increment and return the next objecrt id which has enver been used before.
-    fn next_never_used_id(&self) -> ObjectId {
-        let nid = self.next_free_id.fetch_add(1, Ordering::Relaxed);
-        ObjectId::new(nid, 0, self.ephemeral)
-    }
-
-    /// Consume any incoming object ids, storing them in the `RwLock` side of the queues.
-    fn consume_incoming(&self) {
-        let returned = {
-            let mut guard = self.returned_ids.lock().unwrap();
-            let mut out = vec![];
-            std::mem::swap(&mut out, &mut *guard);
-            out
-        };
-
-        {
-            let mut guard = self.available_ids.write().unwrap();
-            let tmp = returned.len();
-            *guard = returned;
-            self.num_available_ids.store(tmp, Ordering::Relaxed);
+    /// A mint which generates ids in a deterministic fashion.
+    pub fn new_deterministic(ephemeral: bool) -> Mint {
+        Mint {
+            ephemeral,
+            inner: MintInner::Deterministic(Mutex::new(0)),
         }
     }
 
-    /// Generate a fresh object id which is not equal to any other ever produce by this mint.
-    ///
-    /// Panicks if this is not possible, which can only happen if `u32::Max / 2` objects have been created without returning any ids to the queue.
-    pub fn generate_id(&self) -> ObjectId {
-        self.generate_id_impl(false)
+    pub fn new_seeded(seed: [u8; 32], ephemeral: bool) -> Mint {
+        use rand::prelude::*;
+
+        Mint {
+            ephemeral,
+            inner: MintInner::SeededRandom(Box::new(Mutex::new(
+                rand_chacha::ChaCha20Rng::from_seed(seed),
+            ))),
+        }
     }
 
-    fn generate_id_impl(&self, has_consumed_queues: bool) -> ObjectId {
-        {
-            // First, try to get an id from the queue.
-            let guard = self.available_ids.read().unwrap();
-            let maybe_old_num =
-                self.num_available_ids
-                    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |val| {
-                        if val == 0 {
-                            None
-                        } else {
-                            Some(val - 1)
-                        }
-                    });
-            if let Ok(old_num) = maybe_old_num {
-                // We succeeded at decrementing, so old_num is nonzero and we have at least one.
-                // The lock prevents concurrent writers, so hand it out.
-                return guard[old_num - 1];
-            }
-        }
-
-        // If we haven't consumed the queue, do that now, then try again.
-        if !has_consumed_queues {
-            self.consume_incoming();
-            return self.generate_id_impl(true);
-        }
-
-        // If we got here, we did our best. Generate a fresh one.
-        self.next_never_used_id()
+    pub fn next(&self) -> ObjectId {
+        self.inner.next(self.ephemeral)
     }
+}
 
-    // Return an id to the mint.
-    pub fn return_id(&self, id: ObjectId) {
-        assert_eq!(id.get_ephemeral_bit(), self.ephemeral);
-        // Only insert if we can increment the version. Otherwise, this id is
-        // too old.
-        if let Some(next) = id.next_version() {
-            self.returned_ids.lock().unwrap().push(next);
-        }
+impl Default for Mint {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
-    fn test_mint() {
-        let mint = Mint::new(false);
-        let oids = (0..3).map(|_| mint.generate_id()).collect::<Vec<_>>();
-        assert_eq!(
-            oids,
-            vec![
-                ObjectId::new(0, 0, false),
-                ObjectId::new(1, 0, false),
-                ObjectId::new(2, 0, false)
-            ]
-        );
-        for i in oids.into_iter() {
-            mint.return_id(i);
+    fn random_mints_no_duplicate() {
+        let mint = Mint::default();
+        let mut s = HashSet::new();
+        for _ in 0..1000 {
+            s.insert(mint.next());
         }
-        let oids = (0..3).map(|_| mint.generate_id()).collect::<Vec<_>>();
+        assert_eq!(s.len(), 1000);
+    }
+
+    #[test]
+    fn respects_ephemeral() {
+        let m1 = Mint::new_ephemeral(true);
+        let i1 = m1.next();
+        assert!(i1.get_ephemeral_bit());
+        let m2 = Mint::new_deterministic(true);
+        let i2 = m2.next();
+        assert!(i2.get_ephemeral_bit());
+        let m3 = Mint::new_seeded([1; 32], true);
+        let i3 = m3.next();
+        assert!(i3.get_ephemeral_bit());
+    }
+
+    // Let's stop someone changing the rng without realising.
+    #[test]
+    fn seeded_determinism() {
+        let mut seed = [0; 32];
+        (0..32u8).for_each(|i| seed[i as usize] = i);
+        let mint = Mint::new_seeded(seed, false);
+        let mut items = vec![];
+        for _ in 0..5 {
+            items.push(mint.next());
+        }
         assert_eq!(
-            oids,
+            items,
             vec![
-                ObjectId::new(2, 1, false),
-                ObjectId::new(1, 1, false),
-                ObjectId::new(0, 1, false)
+                ObjectId::new(false, 7645359380336737593, 5281276197874154893),
+                ObjectId::new(false, 5506458395325511050, 10530800043416210610),
+                ObjectId::new(false, 3108434420605657899, 7241726879045979711),
+                ObjectId::new(false, 3288744496421241381, 883087369427888066),
+                ObjectId::new(false, 5883643594736318488, 2832275636194402579)
             ]
         );
     }
