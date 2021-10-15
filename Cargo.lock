@@ -78,15 +78,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ammo_sparse_u32_map"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "proptest",
- "rustc-hash",
-]
-
-[[package]]
 name = "ansi_term"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

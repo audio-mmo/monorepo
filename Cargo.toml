@@ -8,7 +8,6 @@ members = [
     "nzslab",
     "physics",
     "self_organizing_list",
-    "sparse_u32_map",
 ]
 
 [profile.bench]
