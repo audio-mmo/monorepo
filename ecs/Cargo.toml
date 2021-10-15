@@ -9,6 +9,7 @@ edition = "2018"
 ammo_ecs_derive = { path = "../ecs_derive" }
 
 derive_more = "0.99.16"
+governor = "0.3.2"
 rand = "0.8.4"
 rand_chacha = "0.3.1"
 serde = { version = "1", features = ["derive"] }
