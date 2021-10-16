@@ -26,6 +26,14 @@ impl ObjectId {
         }
     }
 
+    /// Create an object id for testing, with a counter of the specified value and a random portion of zeros.  Should not be used in production.  Public becuase other crates may wish to use it.
+    ///
+    /// Panics if the counter is zero, for convenience.
+    pub fn new_testing(counter: u64) -> ObjectId {
+        let counter = NonZeroU64::new(counter).expect("Counter must not be zero");
+        ObjectId { counter, random: 0 }
+    }
+
     pub fn get_counter(&self) -> u64 {
         self.counter.get()
     }

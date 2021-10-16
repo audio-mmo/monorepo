@@ -41,7 +41,7 @@ impl<T> Default for Store<T> {
 enum SearchResult {
     Found(usize),
     InsertBefore(usize),
-    TombstoneAvailabel(usize),
+    TombstoneAvailable(usize),
     Pending,
 }
 
@@ -84,10 +84,20 @@ impl<T> StoreState<T> {
     fn search_index_from_id(&self, id: &ObjectId) -> SearchResult {
         let ind = self.keys.binary_search(id);
         match ind {
-            Ok(i) | Err(i) if self.tombstones[i] => SearchResult::TombstoneAvailabel(i),
+            Ok(i) | Err(i) if i < self.tombstones.len() && self.tombstones[i] => {
+                SearchResult::TombstoneAvailable(i)
+            }
             Err(_) if self.pending_inserts.contains_key(id) => SearchResult::Pending,
             Ok(i) => SearchResult::Found(i),
-            Err(i) => SearchResult::InsertBefore(i),
+            Err(i) => {
+                // Special case: if the end of the vector is a tombstone, use that.
+                if let Some(t) = self.tombstones.last() {
+                    if *t {
+                        return SearchResult::TombstoneAvailable(self.tombstones.len() - 1);
+                    }
+                }
+                SearchResult::InsertBefore(i)
+            }
         }
     }
 
@@ -98,15 +108,23 @@ impl<T> StoreState<T> {
                 std::mem::swap(&mut self.values[i], &mut old);
                 Some(old)
             }
-            SearchResult::TombstoneAvailabel(i) => {
+            SearchResult::TombstoneAvailable(i) => {
                 self.tombstones.set(i, false);
                 self.keys[i] = *id;
                 self.values[i] = val;
                 None
             }
-            SearchResult::InsertBefore(_) | SearchResult::Pending => {
+            SearchResult::InsertBefore(i) => {
+                // If i is at the end of the vector, fast case it.
+                if i == self.keys.len() {
+                    self.keys.push(*id);
+                    self.values.push(val);
+                    self.tombstones.push(false);
+                    return None;
+                }
                 self.pending_inserts.insert(*id, val)
             }
+            SearchResult::Pending => self.pending_inserts.insert(*id, val),
         }
     }
 
@@ -119,7 +137,7 @@ impl<T> StoreState<T> {
         pi.retain(|id, val| {
             let res = self.keys.binary_search(id);
             match res {
-                Err(i) if self.tombstones[i] => {
+                Err(i) if i < self.tombstones.len() && self.tombstones[i] => {
                     self.keys[i] = *id;
                     std::mem::swap(&mut self.values[i], val);
                     self.tombstones.set(i, false);
@@ -139,6 +157,10 @@ impl<T> StoreState<T> {
             // The fast and common case is that we're just pushing to the end. Break out once we detect this.
             if let Some(l) = self.keys.last().cloned() {
                 if k > l {
+                    // k is consumed, we must deal with it.
+                    self.keys.push(k);
+                    self.values.push(v);
+                    self.tombstones.push(false);
                     break;
                 }
             }
@@ -169,7 +191,7 @@ impl<T> StoreState<T> {
     fn get_by_id(&self, id: &ObjectId) -> Option<&T> {
         match self.search_index_from_id(id) {
             SearchResult::Found(i) => self.values.get(i),
-            SearchResult::TombstoneAvailabel(_) | SearchResult::InsertBefore(_) => None,
+            SearchResult::TombstoneAvailable(_) | SearchResult::InsertBefore(_) => None,
             SearchResult::Pending => self.pending_inserts.get(id),
         }
     }
@@ -177,7 +199,7 @@ impl<T> StoreState<T> {
     fn get_by_id_mut(&mut self, id: &ObjectId) -> Option<&mut T> {
         match self.search_index_from_id(id) {
             SearchResult::Found(i) => self.values.get_mut(i),
-            SearchResult::TombstoneAvailabel(_) | SearchResult::InsertBefore(_) => None,
+            SearchResult::TombstoneAvailable(_) | SearchResult::InsertBefore(_) => None,
             SearchResult::Pending => self.pending_inserts.get_mut(id),
         }
     }
@@ -209,7 +231,7 @@ impl<T> StoreState<T> {
                     .expect("Should havve been in pending inserts");
                 true
             }
-            SearchResult::InsertBefore(_) | SearchResult::TombstoneAvailabel(_) => false,
+            SearchResult::InsertBefore(_) | SearchResult::TombstoneAvailable(_) => false,
         }
     }
 
@@ -305,6 +327,14 @@ impl<T> Store<T> {
     fn binary_search(&self, id: &ObjectId) -> Result<usize, usize> {
         self.with_state(|s| s.binary_search(id))
     }
+
+    fn delete_id(&mut self, id: &ObjectId) -> bool {
+        self.with_state(|s| s.delete_id(id))
+    }
+
+    fn delete_index(&mut self, index: usize) -> bool {
+        self.with_state(|s| s.delete_index(index))
+    }
 }
 
 pub struct StoreVisitor<T> {
@@ -382,5 +412,236 @@ impl<T> StoreVisitor<T> {
             store.id_at_index(self.last_index),
             store.get_by_index_mut(self.last_index).unwrap(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use bitvec::prelude::*;
+
+    #[test]
+    fn basic_ordered_inserting() {
+        let store: Store<u64> = Store::new();
+        for i in 1..=5 {
+            store.insert(&ObjectId::new_testing(i), i);
+        }
+
+        // The index portion should contain everything.
+        assert_eq!(store.index_len(), 5);
+        assert_eq!(unsafe { (*store.state.get()).pending_inserts.len() }, 0);
+
+        assert_eq!(
+            unsafe { &(*store.state.get()).keys },
+            &vec![
+                ObjectId::new_testing(1),
+                ObjectId::new_testing(2),
+                ObjectId::new_testing(3),
+                ObjectId::new_testing(4),
+                ObjectId::new_testing(5)
+            ]
+        );
+
+        for i in 0..5 {
+            assert_eq!(store.get_by_index(i).unwrap(), &((i + 1) as u64));
+        }
+    }
+
+    #[test]
+    fn insert_reusing_tombstones() {
+        let mut store: Store<u64> = Store::new();
+        for i in 1..=5 {
+            // Leave some holes.
+            store.insert(&ObjectId::new_testing(i * 2), i * 2);
+        }
+        store.commit_pending_inserts();
+
+        // Do some deletes and replaces.
+        store.delete_index(2);
+        assert!(!store.is_index_alive(2));
+        store.insert(&ObjectId::new_testing(5), 5);
+        assert_eq!(store.id_at_index(2), ObjectId::new_testing(5));
+        assert_eq!(store.get_by_index(2).unwrap(), &5);
+
+        store.delete_index(1);
+        store.delete_index(3);
+        assert!(!store.is_index_alive(1));
+        assert!(!store.is_index_alive(3));
+
+        store.insert(&ObjectId::new_testing(3), 3);
+        store.insert(&ObjectId::new_testing(7), 7);
+        assert_eq!(store.id_at_index(1), ObjectId::new_testing(3));
+        assert_eq!(store.get_by_index(1).unwrap(), &3);
+        assert!(store.is_index_alive(1));
+        assert_eq!(store.id_at_index(3), ObjectId::new_testing(7));
+        assert_eq!(store.get_by_index(3).unwrap(), &7);
+        assert!(store.is_index_alive(3));
+
+        // Reuse of the first and last elements are an interesting case worth doing.
+        store.delete_index(0);
+        assert!(!store.is_index_alive(0));
+        store.insert(&ObjectId::new_testing(1), 1);
+        assert!(store.is_index_alive(0));
+        assert_eq!(store.get_by_index(0).unwrap(), &1);
+        assert_eq!(store.id_at_index(0), ObjectId::new_testing(1));
+
+        store.delete_index(4);
+        assert!(!store.is_index_alive(4));
+        // We can use any object id here.
+        store.insert(&ObjectId::new_testing(100), 100);
+        assert!(store.is_index_alive(4));
+        assert_eq!(store.id_at_index(4), ObjectId::new_testing(100));
+        assert_eq!(store.get_by_index(4).unwrap(), &100);
+    }
+
+    #[test]
+    fn test_pending_inserts() {
+        let mut store: Store<u64> = Store::new();
+
+        store.insert(&ObjectId::new_testing(1), 1);
+        store.insert(&ObjectId::new_testing(5), 5);
+        store.insert(&ObjectId::new_testing(2), 2);
+        store.insert(&ObjectId::new_testing(3), 3);
+        store.insert(&ObjectId::new_testing(4), 4);
+
+        assert_eq!(store.index_len(), 2);
+        assert_eq!(unsafe { (*store.state.get()).pending_inserts.len() }, 3);
+        store.commit_pending_inserts();
+
+        assert_eq!(
+            unsafe { &(*store.state.get()).keys },
+            &vec![
+                ObjectId::new_testing(1),
+                ObjectId::new_testing(2),
+                ObjectId::new_testing(3),
+                ObjectId::new_testing(4),
+                ObjectId::new_testing(5)
+            ]
+        );
+        assert_eq!(
+            unsafe { &(*store.state.get()).values },
+            &vec![1, 2, 3, 4, 5]
+        );
+        assert_eq!(
+            unsafe { &(*store.state.get()).tombstones },
+            &bitvec::bitvec![0; 5]
+        );
+    }
+
+    #[test]
+    fn test_mutation() {
+        let mut store: Store<u64> = Store::new();
+
+        store.insert(&ObjectId::new_testing(1), 1);
+        store.insert(&ObjectId::new_testing(5), 5);
+        store.insert(&ObjectId::new_testing(2), 2);
+        store.insert(&ObjectId::new_testing(3), 3);
+        store.insert(&ObjectId::new_testing(4), 4);
+
+        store.insert(&ObjectId::new_testing(1), 11);
+        store.insert(&ObjectId::new_testing(5), 15);
+        store.insert(&ObjectId::new_testing(2), 12);
+        store.insert(&ObjectId::new_testing(3), 13);
+        store.insert(&ObjectId::new_testing(4), 14);
+
+        assert_eq!(
+            unsafe { &(*store.state.get()).keys },
+            &vec![ObjectId::new_testing(1), ObjectId::new_testing(5)]
+        );
+        assert_eq!(unsafe { &(*store.state.get()).values }, &vec![11, 15]);
+        assert_eq!(
+            unsafe { &(*store.state.get()).pending_inserts }
+                .iter()
+                .map(|x| (*x.0, *x.1))
+                .collect::<Vec<_>>(),
+            vec![
+                (ObjectId::new_testing(2), 12),
+                (ObjectId::new_testing(3), 13),
+                (ObjectId::new_testing(4), 14)
+            ]
+        );
+
+        store.commit_pending_inserts();
+
+        assert_eq!(
+            unsafe { &(*store.state.get()).keys },
+            &vec![
+                ObjectId::new_testing(1),
+                ObjectId::new_testing(2),
+                ObjectId::new_testing(3),
+                ObjectId::new_testing(4),
+                ObjectId::new_testing(5)
+            ]
+        );
+        assert_eq!(
+            unsafe { &(*store.state.get()).values },
+            &vec![11, 12, 13, 14, 15]
+        );
+        assert_eq!(
+            unsafe { &(*store.state.get()).tombstones },
+            &bitvec::bitvec![0; 5],
+        );
+    }
+
+    #[test]
+    fn test_get_by_id() {
+        let mut store: Store<u64> = Store::new();
+        // Leave some holes.
+        for i in 1..=10 {
+            store.insert(&ObjectId::new_testing(i * 2), i * 2);
+        }
+
+        for i in 1..=10 {
+            assert_eq!(
+                store.get_by_id(&ObjectId::new_testing(i * 2)),
+                Some(&(i * 2))
+            );
+            assert_eq!(
+                store.get_by_id_mut(&ObjectId::new_testing(i * 2)),
+                Some(&mut (i * 2))
+            );
+
+            // Check that any index we shouldn't have isn't present.
+            assert_eq!(store.get_by_id(&ObjectId::new_testing(i * 2 + 1)), None);
+            assert_eq!(store.get_by_id_mut(&ObjectId::new_testing(i * 2 + 1)), None);
+        }
+
+        // Putting something in the pending inserts should work.
+        store.insert(&ObjectId::new_testing(1), 1);
+        assert_eq!(store.get_by_id(&ObjectId::new_testing(1)), Some(&1));
+        assert_eq!(store.get_by_id_mut(&ObjectId::new_testing(1)), Some(&mut 1));
+    }
+
+    #[test]
+    fn test_compaction() {
+        let mut store: Store<u64> = Store::new();
+        for i in 1..=5 {
+            store.insert(&ObjectId::new_testing(i), i);
+        }
+
+        store.commit_pending_inserts();
+        assert!(store.delete_id(&ObjectId::new_testing(2)));
+        assert!(store.delete_id(&ObjectId::new_testing(4)));
+        assert!(store.delete_id(&ObjectId::new_testing(5)));
+
+        assert_eq!(
+            unsafe { &(*store.state.get()).keys },
+            &vec![
+                ObjectId::new_testing(1),
+                ObjectId::new_testing(2),
+                ObjectId::new_testing(3),
+                ObjectId::new_testing(4),
+                ObjectId::new_testing(5)
+            ]
+        );
+        assert_eq!(
+            unsafe { &(*store.state.get()).values },
+            &vec![1, 2, 3, 4, 5]
+        );
+        assert_eq!(
+            unsafe { &(*store.state.get()).tombstones },
+            &bitvec::bitvec![0, 1, 0, 1, 1]
+        );
     }
 }
