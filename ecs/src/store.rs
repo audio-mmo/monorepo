@@ -384,7 +384,7 @@ impl<T> Store<T> {
     }
 
     /// Get an iterator `(index, id, value)`.
-    /// 
+    ///
     /// Note that `iter_mut` is significantly faster.  Prefer it when possible.
     pub fn iter(&self) -> impl Iterator<Item = (usize, ObjectId, &T)> {
         // We go via an external helper type that drives a visitor, since we're using interior mutability: borrowing the
