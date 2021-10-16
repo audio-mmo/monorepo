@@ -460,6 +460,18 @@ impl<T> StoreVisitor<T> {
             store.get_by_index_mut(self.last_index).unwrap(),
         ))
     }
+
+    /// Peak at the next id this visitor will return, assuming that the store isn't modified in the meantime.
+    ///
+    /// Used in the query infrastructure.
+    pub fn peak_id(&mut self, store: &Store<T>) -> Option<ObjectId> {
+        let old_last_index = self.last_index;
+        let old_objid = self.last_seen_id;
+        let ret = self.next(store).map(|x| x.0);
+        self.last_index = old_last_index;
+        self.last_seen_id = old_objid;
+        ret
+    }
 }
 
 #[cfg(test)]
@@ -765,10 +777,37 @@ mod tests {
             ]
         );
     }
+
     #[test]
     fn test_visitor_on_empty_store() {
         let store: Store<u64> = Store::new();
         let mut vis = StoreVisitor::new(&store);
         assert_eq!(vis.next(&store), None);
+    }
+
+    #[test]
+    fn test_visitor_peak() {
+        let store: Store<u64> = Store::new();
+        for i in 1..=5 {
+            store.insert(&ObjectId::new_testing(i), i);
+        }
+
+        let mut vis = StoreVisitor::new(&store);
+        let mut res = vec![];
+        let mut peak = vec![vis.peak_id(&store)];
+        while let Some((k, v)) = vis.next(&store) {
+            res.push((k.get_counter(), *v));
+            peak.push(vis.peak_id(&store));
+        }
+        let peak = peak
+            .into_iter()
+            .map(|x| x.map(|y| y.get_counter()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(res, vec![(1, 1), (2, 2), (3, 3), (4, 4), (5, 5)]);
+        assert_eq!(
+            peak,
+            vec![Some(1), Some(2), Some(3), Some(4), Some(5), None]
+        );
     }
 }
