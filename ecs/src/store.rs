@@ -382,6 +382,32 @@ impl<T> Store<T> {
     pub fn delete_index(&self, index: usize) -> bool {
         self.with_state(|s| s.delete_index(index))
     }
+
+    /// Get an iterator `(index, id, value)`.
+    /// 
+    /// Note that `iter_mut` is significantly faster.  Prefer it when possible.
+    pub fn iter(&self) -> impl Iterator<Item = (usize, ObjectId, &T)> {
+        // We go via an external helper type that drives a visitor, since we're using interior mutability: borrowing the
+        // internal state would allow multiple borrows to the underlying state at the same time, should someone also
+        // update while iterating.
+        StoreIterator {
+            visitor: StoreVisitor::new(self),
+            store: self,
+        }
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (usize, ObjectId, &mut T)> {
+        let r = unsafe { &mut *self.state.get() };
+        let ks = &r.keys;
+        let vs = &mut r.values;
+        let ts = &r.tombstones;
+        vs.iter_mut().enumerate().flat_map(move |(ind, val)| {
+            if ts[ind] {
+                return None;
+            }
+            Some((ind, ks[ind], val))
+        })
+    }
 }
 
 pub struct StoreVisitor<T> {
@@ -437,25 +463,30 @@ impl<T> StoreVisitor<T> {
         }
     }
 
-    pub fn next<'a>(&mut self, store: &'a Store<T>) -> Option<(ObjectId, &'a T)> {
+    pub fn next<'a>(&mut self, store: &'a Store<T>) -> Option<(usize, ObjectId, &'a T)> {
         self.incr_index(store);
         if self.last_index >= store.index_len() {
             return None;
         }
 
         return Some((
+            self.last_index,
             store.id_at_index(self.last_index),
             store.get_by_index(self.last_index).unwrap(),
         ));
     }
 
-    pub fn next_mut<'a>(&mut self, store: &'a mut Store<T>) -> Option<(ObjectId, &'a mut T)> {
+    pub fn next_mut<'a>(
+        &mut self,
+        store: &'a mut Store<T>,
+    ) -> Option<(usize, ObjectId, &'a mut T)> {
         self.incr_index(store);
         if self.last_index >= store.index_len() {
             return None;
         }
 
         Some((
+            self.last_index,
             store.id_at_index(self.last_index),
             store.get_by_index_mut(self.last_index).unwrap(),
         ))
@@ -467,10 +498,23 @@ impl<T> StoreVisitor<T> {
     pub fn peak_id(&mut self, store: &Store<T>) -> Option<ObjectId> {
         let old_last_index = self.last_index;
         let old_objid = self.last_seen_id;
-        let ret = self.next(store).map(|x| x.0);
+        let ret = self.next(store).map(|x| x.1);
         self.last_index = old_last_index;
         self.last_seen_id = old_objid;
         ret
+    }
+}
+
+pub struct StoreIterator<'a, T> {
+    store: &'a Store<T>,
+    visitor: StoreVisitor<T>,
+}
+
+impl<'a, T> Iterator for StoreIterator<'a, T> {
+    type Item = (usize, ObjectId, &'a T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.visitor.next(self.store)
     }
 }
 
@@ -713,7 +757,7 @@ mod tests {
 
         let mut vis = StoreVisitor::new(&store);
         let mut res = vec![];
-        while let Some((k, v)) = vis.next(&store) {
+        while let Some((_, k, v)) = vis.next(&store) {
             res.push((k.get_counter(), *v));
         }
 
@@ -734,7 +778,7 @@ mod tests {
 
         let mut vis = StoreVisitor::new(&store);
         let mut res = vec![];
-        while let Some((k, v)) = vis.next(&store) {
+        while let Some((_, k, v)) = vis.next(&store) {
             res.push((k.get_counter(), *v));
         }
 
@@ -751,13 +795,13 @@ mod tests {
         let mut vis = StoreVisitor::new(&store);
         let mut res = vec![];
         for _ in 0..3 {
-            res.push(vis.next(&store).map(|x| (x.0.get_counter(), *x.1)).unwrap());
+            res.push(vis.next(&store).map(|x| (x.1.get_counter(), *x.2)).unwrap());
         }
 
         store.delete_index(0);
         store.maintenance();
 
-        while let Some((k, v)) = vis.next(&store) {
+        while let Some((_, k, v)) = vis.next(&store) {
             res.push((k.get_counter(), *v));
         }
 
@@ -795,7 +839,7 @@ mod tests {
         let mut vis = StoreVisitor::new(&store);
         let mut res = vec![];
         let mut peak = vec![vis.peak_id(&store)];
-        while let Some((k, v)) = vis.next(&store) {
+        while let Some((_, k, v)) = vis.next(&store) {
             res.push((k.get_counter(), *v));
             peak.push(vis.peak_id(&store));
         }
@@ -809,5 +853,44 @@ mod tests {
             peak,
             vec![Some(1), Some(2), Some(3), Some(4), Some(5), None]
         );
+    }
+
+    #[test]
+    fn test_iter() {
+        let mut store: Store<u64> = Store::new();
+
+        for i in 1..=5 {
+            store.insert(&ObjectId::new_testing(i), i);
+        }
+
+        store.maintenance();
+        store.delete_index(2);
+
+        let res = store
+            .iter()
+            .map(|i| (i.0, i.1.get_counter(), *i.2))
+            .collect::<Vec<_>>();
+        assert_eq!(res, vec![(0, 1, 1), (1, 2, 2), (3, 4, 4), (4, 5, 5)]);
+    }
+
+    #[test]
+
+    /// We need to also test `iter_mut` because the implementation of it is entirely different from `iter`.
+    #[test]
+    fn test_iter_mut() {
+        let mut store: Store<u64> = Store::new();
+
+        for i in 1..=5 {
+            store.insert(&ObjectId::new_testing(i), i);
+        }
+
+        store.maintenance();
+        store.delete_index(2);
+
+        let res = store
+            .iter_mut()
+            .map(|i| (i.0, i.1.get_counter(), *i.2))
+            .collect::<Vec<_>>();
+        assert_eq!(res, vec![(0, 1, 1), (1, 2, 2), (3, 4, 4), (4, 5, 5)]);
     }
 }
