@@ -332,7 +332,7 @@ impl<T> Store<T> {
         self.with_state(|s| s.delete_id(id))
     }
 
-    fn delete_index(&mut self, index: usize) -> bool {
+    fn delete_index(&self, index: usize) -> bool {
         self.with_state(|s| s.delete_index(index))
     }
 }
@@ -353,7 +353,7 @@ impl<T> StoreVisitor<T> {
     }
 
     fn advance_past_tombstones(&mut self, store: &Store<T>) {
-        while !store.is_index_alive(self.last_index) {
+        while self.last_index < store.index_len() && !store.is_index_alive(self.last_index) {
             self.last_index += 1;
         }
     }
@@ -643,5 +643,85 @@ mod tests {
             unsafe { &(*store.state.get()).tombstones },
             &bitvec::bitvec![0, 1, 0, 1, 1]
         );
+    }
+
+    #[test]
+    fn test_visitor_basic() {
+        let store: Store<u64> = Store::new();
+        for i in 1..=5 {
+            store.insert(&ObjectId::new_testing(i), i);
+        }
+
+        let mut vis = StoreVisitor::new(&store);
+        let mut res = vec![];
+        while let Some((k, v)) = vis.next(&store) {
+            res.push((k.get_counter(), *v));
+        }
+
+        assert_eq!(res, vec![(1, 1), (2, 2), (3, 3), (4, 4), (5, 5)]);
+    }
+
+    #[test]
+    fn test_visitor_tombstone() {
+        let store: Store<u64> = Store::new();
+        for i in 1..=10 {
+            store.insert(&ObjectId::new_testing(i), i);
+        }
+
+        store.delete_index(1);
+        store.delete_index(3);
+        store.delete_index(4);
+        store.delete_index(9);
+
+        let mut vis = StoreVisitor::new(&store);
+        let mut res = vec![];
+        while let Some((k, v)) = vis.next(&store) {
+            res.push((k.get_counter(), *v));
+        }
+
+        assert_eq!(res, vec![(1, 1), (3, 3), (6, 6), (7, 7), (8, 8), (9, 9)]);
+    }
+
+    #[test]
+    fn test_visitor_tombstone_with_delete_before() {
+        let mut store: Store<u64> = Store::new();
+        for i in 1..=10 {
+            store.insert(&ObjectId::new_testing(i), i);
+        }
+
+        let mut vis = StoreVisitor::new(&store);
+        let mut res = vec![];
+        for _ in 0..3 {
+            res.push(vis.next(&store).map(|x| (x.0.get_counter(), *x.1)).unwrap());
+        }
+
+        store.delete_index(0);
+        store.maintenance();
+
+        while let Some((k, v)) = vis.next(&store) {
+            res.push((k.get_counter(), *v));
+        }
+
+        assert_eq!(
+            res,
+            vec![
+                (1, 1),
+                (2, 2),
+                (3, 3),
+                (4, 4),
+                (5, 5),
+                (6, 6),
+                (7, 7),
+                (8, 8),
+                (9, 9),
+                (10, 10),
+            ]
+        );
+    }
+    #[test]
+    fn test_visitor_on_empty_store() {
+        let store: Store<u64> = Store::new();
+        let mut vis = StoreVisitor::new(&store);
+        assert_eq!(vis.next(&store), None);
     }
 }
