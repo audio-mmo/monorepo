@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use std::cell::UnsafeCell;
 use std::collections::BTreeMap;
 
@@ -70,6 +69,7 @@ impl<T> StoreState<T> {
     }
 
     fn maintenance(&mut self) {
+        // committing inserts handles compaction, and tries to reuse tombstones.
         self.commit_pending_inserts();
         self.keys.shrink_to_fit();
         self.values.shrink_to_fit();
@@ -272,16 +272,16 @@ impl<T> Store<T> {
     }
 
     /// Commit a batch of inserts.
-    fn commit_pending_inserts(&mut self) {
+    pub fn commit_pending_inserts(&mut self) {
         self.with_state(|s| s.commit_pending_inserts())
     }
 
     /// Perform maintenance. Commits inserts which are outstanding and shrinks the internal arrays to reclaim space.
-    fn maintenance(&mut self) {
+    pub fn maintenance(&mut self) {
         self.with_state(|s| s.maintenance())
     }
 
-    fn insert(&self, key: &ObjectId, val: T) -> Option<T> {
+    pub fn insert(&self, key: &ObjectId, val: T) -> Option<T> {
         self.with_state(|s| s.insert(key, val))
     }
 
@@ -328,11 +328,11 @@ impl<T> Store<T> {
         self.with_state(|s| s.binary_search(id))
     }
 
-    fn delete_id(&mut self, id: &ObjectId) -> bool {
+    pub fn delete_id(&mut self, id: &ObjectId) -> bool {
         self.with_state(|s| s.delete_id(id))
     }
 
-    fn delete_index(&self, index: usize) -> bool {
+    pub fn delete_index(&self, index: usize) -> bool {
         self.with_state(|s| s.delete_index(index))
     }
 }
