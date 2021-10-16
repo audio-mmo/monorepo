@@ -1,3 +1,5 @@
+//! The [Store] is a store optimized for in-order object ids, using 3 vecs and a BTreeMap.  See the comments on the
+//! [Store] type for details.
 use std::cell::UnsafeCell;
 use std::collections::BTreeMap;
 
@@ -5,6 +7,51 @@ use bitvec::vec::BitVec;
 
 use crate::object_id::ObjectId;
 
+/// A store for component data consisting of some vecs.
+///
+/// This implementation uses:
+///
+/// - A vec of keys, which must be [ObjectId]s.
+/// - A vec of values, which ca be anything.
+/// - A bitvec of tombstones, which are toggled to true when objects are deleted.
+///
+/// This container may be accessed by index (for iterating) or by object id (for map-like access).  When objects are
+/// inserted, they go either to an unused slot in the vecs or to a queue of pending inserts.  Like with stdlib maps,
+/// inserting twice is how one can override the key, but a variety of `get` and `get_mut` methods are available.
+///
+/// Observe the following rules about visibility:
+///
+/// - The container uses interior mutability. All `&self` methods keep the indices stable.  Methods which return `&mut`
+///   may or may not, with the exception of `get_by_index_mut` and `get_by_id_mut`, which need a mutable reference to
+///   return a mutable reference.
+/// - All deletes are visible if going through the `by_id` interfaces.
+/// - All inserts are visible if going through the `by_id` interfaces.
+/// - Objects may not be assigned an index until after `commit_pending_inserts` is called.  They will usually be if
+///   objects are inserted in order of increasing id.
+/// - The `by_index` API doesn't check tombstones for you.  Use `is_index_alive` for that.
+///
+/// So the usage pattern is: when iterating if you're not inserting do nothing, otherwise you might or might not see the
+/// object.  In common usage you probably will but this isn't guaranteed.  If you want to see the object commit all the
+/// inserts.
+///
+/// A method `maintenance` should periodically be called: this gets rid of tombstones, compacts the vectors, and commits
+/// pending inserts.  Failure to call this method periodically will slowly grow the vecs to the largest size the
+/// container has evern been and keep them there, and also greatly slow iteration which must skip tombstones.
+///
+/// A standard iteration interface is not provided.  Instead, iterate using a [StoreVisitor].  It is possible to
+/// modify/delete objects from the store while visiting it, and the visitor will handle this case by figuring out what
+/// the next-largest id from the one it last saw was.  Deleting an object which you haven't seen yet will observe the
+/// delete.  Iterating over the store only iterates over committed inserts, and iterates in order of increasing object
+/// id.
+///
+/// The design here is optimized for the case in which we want to join multiple stores to perform queries in `O(1)`
+/// additional memory and `O(n)` time.  Basically, when deleting/inserting in higher level components, insert/deletions
+/// may not be visible until the next tick, but modifications are visible immediately.  The interior mutability avoids
+/// issues like needing to build up lists of changes, by allowing modification while iterating: we assume that memory is
+/// the most expensive component and take the CPU hit to make that happen.
+///
+/// Methods which don't return `Option` use normal `[]` indexing under the hood and generally panic on invariant
+/// failures.
 pub struct Store<T> {
     state: UnsafeCell<StoreState<T>>,
 }
