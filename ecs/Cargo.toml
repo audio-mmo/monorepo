@@ -8,6 +8,7 @@ edition = "2018"
 [dependencies]
 ammo_ecs_derive = { path = "../ecs_derive" }
 
+bitvec = "0.22.3"
 derive_more = "0.99.16"
 governor = "0.3.2"
 rand = "0.8.4"
