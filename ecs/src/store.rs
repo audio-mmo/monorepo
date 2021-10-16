@@ -375,7 +375,7 @@ impl<T> Store<T> {
         self.with_state(|s| s.binary_search(id))
     }
 
-    pub fn delete_id(&mut self, id: &ObjectId) -> bool {
+    pub fn delete_id(&self, id: &ObjectId) -> bool {
         self.with_state(|s| s.delete_id(id))
     }
 
