@@ -71,39 +71,25 @@ enum SearchResult {
 impl<T> StoreState<T> {
     /// Compact all tombstones after a given index.
     fn compact(&mut self) {
-        // Find the first tombstone.
-        let mut first_tombstone = 0;
-        while first_tombstone < self.tombstones.len() && !self.tombstones[first_tombstone] {
-            first_tombstone += 1
-        }
+        let mut key_ind = 0;
+        let keys = &mut self.keys;
+        let tombs = &mut self.tombstones;
+        keys.retain(|_| {
+            let ret = !tombs[key_ind];
+            key_ind += 1;
+            ret
+        });
 
-        // We copy items to here:
-        let mut copy_to = first_tombstone;
-        let tlen = self.tombstones.len();
+        let mut val_ind = 0;
+        let vals = &mut self.values;
+        vals.retain(|_| {
+            let ret = !tombs[val_ind];
+            val_ind += 1;
+            ret
+        });
 
-        for i in (first_tombstone + 1)..tlen {
-            if self.tombstones[i] {
-                continue;
-            }
-
-            // We actually want to move all tombstones to the end; to do this, we swap the values around, then claim
-            // that the current cell is a tombstone.
-            self.keys.swap(copy_to, i);
-            self.values.swap(copy_to, i);
-            self.tombstones.swap(copy_to, i);
-            // We need to move copy_to to the next tombstone. We could probably optimize this loop, but let's just
-            // let it be obviously correct.
-            while copy_to <= i && !self.tombstones[copy_to] {
-                copy_to += 1
-            }
-        }
-
-        // Now, resize everything down.  copy_to points to the first tombstone, or one-past-the-end.
-        debug_assert!(copy_to == self.tombstones.len() || self.tombstones[copy_to]);
-        self.tombstones.resize(copy_to, false);
-        self.keys.resize_with(copy_to, || panic!("We're shrinking"));
-        self.values
-            .resize_with(copy_to, || panic!("We're shrinking"));
+        self.tombstones.truncate(self.keys.len());
+        self.tombstones.set_elements(0);
     }
 
     fn search_index_from_id(&self, id: &ObjectId) -> SearchResult {
