@@ -1,8 +1,13 @@
 use ammo_ecs::component::*;
-use ammo_ecs::*;
+use ammo_ecs::prelude::*;
 
 #[derive(Component, Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[ammo(namespace = "example", id = "foo", int_namespace = 2, int_id = 1)]
+#[ammo(
+    namespace = "\"example\"",
+    id = "\"foo\"",
+    int_namespace = "2",
+    int_id = "1"
+)]
 struct Foo {
     bar: String,
 }

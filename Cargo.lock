@@ -32,6 +32,7 @@ name = "ammo_ecs"
 version = "0.1.0"
 dependencies = [
  "ammo_ecs_derive",
+ "ammo_physics",
  "bitvec",
  "derive_more",
  "governor",
