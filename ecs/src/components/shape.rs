@@ -13,7 +13,7 @@ const SHAPE_ID_STR: &str = "shape";
     int_id = "SHAPE_ID"
 )]
 #[serde(rename_all = "snake_case")]
-#[serde(tag = "type")]
+#[serde(tag = "type", content = "payload")]
 #[non_exhaustive]
 pub enum Shape {
     /// The object is a circle.
