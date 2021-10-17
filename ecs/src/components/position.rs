@@ -2,7 +2,9 @@ use ammo_physics::V2;
 
 use crate::prelude::*;
 
+/// The id of the [Position] component.
 pub const POSITION_ID: u16 = 1;
+/// The string id of the [Position] component.
 pub const POSITION_ID_STR: &str = "position";
 
 /// Represents a position.
