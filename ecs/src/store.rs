@@ -1,6 +1,5 @@
 //! The [Store] is a store optimized for in-order object ids, using 3 vecs and a BTreeMap.  See the comments on the
 //! [Store] type for details.
-use std::cell::UnsafeCell;
 use std::collections::BTreeMap;
 
 use bitvec::vec::BitVec;
@@ -12,7 +11,7 @@ use crate::object_id::ObjectId;
 /// This implementation uses:
 ///
 /// - A vec of keys, which must be [ObjectId]s.
-/// - A vec of values, which ca be anything.
+/// - A vec of values, which can be anything.
 /// - A bitvec of tombstones, which are toggled to true when objects are deleted.
 ///
 /// This container may be accessed by index (for iterating) or by object id (for map-like access).  When objects are
@@ -21,14 +20,13 @@ use crate::object_id::ObjectId;
 ///
 /// Observe the following rules about visibility:
 ///
-/// - The container uses interior mutability. All `&self` methods keep the indices stable.  Methods which return `&mut`
-///   may or may not, with the exception of `get_by_index_mut` and `get_by_id_mut`, which need a mutable reference to
-///   return a mutable reference.
+/// - Indices are stable until inserts are committed, but the vec may grow and/or reuse tombstone-occupied cells.
 /// - All deletes are visible if going through the `by_id` interfaces.
 /// - All inserts are visible if going through the `by_id` interfaces.
 /// - Objects may not be assigned an index until after `commit_pending_inserts` is called.  They will usually be if
 ///   objects are inserted in order of increasing id.
 /// - The `by_index` API doesn't check tombstones for you.  Use `is_index_alive` for that.
+/// - Data isn't dropped until inserts are committed and/or maintenance is called.
 ///
 /// So the usage pattern is: when iterating if you're not inserting do nothing, otherwise you might or might not see the
 /// object.  In common usage you probably will but this isn't guaranteed.  If you want to see the object commit all the
@@ -38,10 +36,10 @@ use crate::object_id::ObjectId;
 /// pending inserts.  Failure to call this method periodically will slowly grow the vecs to the largest size the
 /// container has evern been and keep them there, and also greatly slow iteration which must skip tombstones.
 ///
-/// A standard iteration interface is not provided.  Instead, iterate using a [StoreVisitor].  It is possible to
-/// modify/delete objects from the store while visiting it, and the visitor will handle this case by figuring out what
-/// the next-largest id from the one it last saw was.  Deleting an object which you haven't seen yet will observe the
-/// delete.  Iterating over the store only iterates over committed inserts, and iterates in order of increasing object
+/// It is possible to iterate using a [StoreVisitor] which allows you to modify/delete objects from the store while
+/// visiting it, and the visitor will handle this case by figuring out what the next-largest id from the one it last saw
+/// was.  Deleting an object which you haven't seen yet will observe the delete.  Iterating over the store (via the
+/// visitor or via the iteration api) only iterates over committed inserts, and iterates in order of increasing object
 /// id.
 ///
 /// The design here is optimized for the case in which we want to join multiple stores to perform queries in `O(1)`
@@ -53,31 +51,19 @@ use crate::object_id::ObjectId;
 /// Methods which don't return `Option` use normal `[]` indexing under the hood and generally panic on invariant
 /// failures.
 pub struct Store<T> {
-    state: UnsafeCell<StoreState<T>>,
-}
-
-struct StoreState<T> {
     keys: Vec<ObjectId>,
     values: Vec<T>,
     tombstones: BitVec,
     pending_inserts: BTreeMap<ObjectId, T>,
 }
 
-impl<T> Default for StoreState<T> {
+impl<T> Default for Store<T> {
     fn default() -> Self {
         Self {
             keys: vec![],
             values: vec![],
             tombstones: BitVec::new(),
             pending_inserts: Default::default(),
-        }
-    }
-}
-
-impl<T> Default for Store<T> {
-    fn default() -> Self {
-        Store {
-            state: UnsafeCell::new(Default::default()),
         }
     }
 }
@@ -91,7 +77,11 @@ enum SearchResult {
     Pending,
 }
 
-impl<T> StoreState<T> {
+impl<T> Store<T> {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
     /// Compact all tombstones after a given index.
     fn compact(&mut self) {
         let mut key_ind = 0;
@@ -115,7 +105,7 @@ impl<T> StoreState<T> {
         self.tombstones.set_elements(0);
     }
 
-    fn maintenance(&mut self) {
+    pub fn maintenance(&mut self) {
         // committing inserts handles compaction, and tries to reuse tombstones.
         self.commit_pending_inserts();
         self.keys.shrink_to_fit();
@@ -148,7 +138,7 @@ impl<T> StoreState<T> {
         }
     }
 
-    fn insert(&mut self, id: &ObjectId, val: T) -> Option<T> {
+    pub fn insert(&mut self, id: &ObjectId, val: T) -> Option<T> {
         match self.search_index_from_id(id) {
             SearchResult::Found(i) => {
                 let mut old = val;
@@ -175,7 +165,7 @@ impl<T> StoreState<T> {
         }
     }
 
-    fn commit_pending_inserts(&mut self) {
+    pub fn commit_pending_inserts(&mut self) {
         // First, insert anything we can insert via a tombstone.  We have to help the borrow checker out here until
         // edition 2021 is stable.
         let mut pi = BTreeMap::new();
@@ -235,7 +225,7 @@ impl<T> StoreState<T> {
         assert_eq!(self.values.len(), self.tombstones.len());
     }
 
-    fn get_by_id(&self, id: &ObjectId) -> Option<&T> {
+    pub fn get_by_id(&self, id: &ObjectId) -> Option<&T> {
         match self.search_index_from_id(id) {
             SearchResult::Found(i) => self.values.get(i),
             SearchResult::TombstoneAvailable(_) | SearchResult::InsertBefore(_) => None,
@@ -243,7 +233,7 @@ impl<T> StoreState<T> {
         }
     }
 
-    fn get_by_id_mut(&mut self, id: &ObjectId) -> Option<&mut T> {
+    pub fn get_by_id_mut(&mut self, id: &ObjectId) -> Option<&mut T> {
         match self.search_index_from_id(id) {
             SearchResult::Found(i) => self.values.get_mut(i),
             SearchResult::TombstoneAvailable(_) | SearchResult::InsertBefore(_) => None,
@@ -251,22 +241,22 @@ impl<T> StoreState<T> {
         }
     }
 
-    fn get_by_index(&self, index: usize) -> Option<&T> {
+    pub fn get_by_index(&self, index: usize) -> Option<&T> {
         self.values.get(index)
     }
 
-    fn get_by_index_mut(&mut self, index: usize) -> Option<&mut T> {
+    pub fn get_by_index_mut(&mut self, index: usize) -> Option<&mut T> {
         self.values.get_mut(index)
     }
 
-    fn index_for_id(&self, id: &ObjectId) -> Option<usize> {
+    pub fn index_for_id(&self, id: &ObjectId) -> Option<usize> {
         match self.search_index_from_id(id) {
             SearchResult::Found(i) => Some(i),
             _ => None,
         }
     }
 
-    fn delete_id(&mut self, id: &ObjectId) -> bool {
+    pub fn delete_id(&mut self, id: &ObjectId) -> bool {
         match self.search_index_from_id(id) {
             SearchResult::Found(i) => {
                 self.tombstones.set(i, true);
@@ -282,131 +272,52 @@ impl<T> StoreState<T> {
         }
     }
 
-    fn delete_index(&mut self, index: usize) -> bool {
+    pub fn delete_index(&mut self, index: usize) -> bool {
         let ret = self.tombstones[index];
         self.tombstones.set(index, true);
         // Ret is true if there was already a tombstone, e.g. we did nothing.
         !ret
     }
 
-    fn is_index_alive(&self, index: usize) -> bool {
+    pub fn is_index_alive(&self, index: usize) -> bool {
         !self.tombstones[index]
     }
 
-    fn index_len(&self) -> usize {
+    pub fn index_len(&self) -> usize {
         self.keys.len()
     }
 
-    fn id_at_index(&self, index: usize) -> ObjectId {
+    pub fn id_at_index(&self, index: usize) -> ObjectId {
         self.keys[index]
     }
-}
 
-impl<T> Store<T> {
-    pub fn new() -> Store<T> {
-        Default::default()
-    }
-
-    /// Call a function on the state.  Hides the `UnsafeCell` behind a safe interface.
-    ///
-    /// Since this isn't sync, we know that only one caller can be in here at once, and that thus our invariant is that
-    /// we must be in a consistent state when we leave this function.
-    fn with_state<R>(&self, cb: impl FnOnce(&mut StoreState<T>) -> R) -> R {
-        unsafe {
-            let ptr = self.state.get();
-            cb(&mut *ptr)
-        }
-    }
-
-    /// Commit a batch of inserts.
-    pub fn commit_pending_inserts(&mut self) {
-        self.with_state(|s| s.commit_pending_inserts())
-    }
-
-    /// Perform maintenance. Commits inserts which are outstanding and shrinks the internal arrays to reclaim space.
-    pub fn maintenance(&mut self) {
-        self.with_state(|s| s.maintenance())
-    }
-
-    pub fn insert(&self, key: &ObjectId, val: T) -> Option<T> {
-        self.with_state(|s| s.insert(key, val))
-    }
-
-    pub fn get_by_id(&self, id: &ObjectId) -> Option<&T> {
-        // We use the fact that only &mut methods move things around to prove safety.
-        unsafe { (&*self.state.get()).get_by_id(id) }
-    }
-
-    pub fn get_by_id_mut(&mut self, id: &ObjectId) -> Option<&mut T> {
-        unsafe { (&mut *self.state.get()).get_by_id_mut(id) }
-    }
-
-    // Read a particular index. Don't check the tombstone.
-    pub fn get_by_index(&self, index: usize) -> Option<&T> {
-        unsafe { (&*self.state.get()).get_by_index(index) }
-    }
-
-    /// Read a particular index. Don't check the tombstone.
-    pub fn get_by_index_mut(&mut self, index: usize) -> Option<&mut T> {
-        unsafe { (&mut *self.state.get()).get_by_index_mut(index) }
-    }
-
-    /// Is the specified index alive?
-    pub fn is_index_alive(&self, index: usize) -> bool {
-        self.with_state(|s| s.is_index_alive(index))
-    }
-
-    /// Find the index for a particular object id. Returns `Some(index)` if the object is in the store and is a
-    /// committed insert.
-    pub fn index_for_id(&self, id: &ObjectId) -> Option<usize> {
-        self.with_state(|s| s.index_for_id(id))
-    }
-
-    /// Return the length of the index portion.
-    pub fn index_len(&self) -> usize {
-        self.with_state(|s| s.index_len())
-    }
-
-    fn id_at_index(&self, index: usize) -> ObjectId {
-        self.with_state(|s| s.id_at_index(index))
-    }
-
-    fn binary_search(&self, id: &ObjectId) -> Result<usize, usize> {
-        self.with_state(|s| s.binary_search(id))
-    }
-
-    pub fn delete_id(&self, id: &ObjectId) -> bool {
-        self.with_state(|s| s.delete_id(id))
-    }
-
-    pub fn delete_index(&self, index: usize) -> bool {
-        self.with_state(|s| s.delete_index(index))
-    }
-
-    /// Get an iterator `(index, id, value)`.
-    ///
-    /// Note that `iter_mut` is significantly faster.  Prefer it when possible.
+    /// Returns a `(index, ObjectId, value)` iterator.
     pub fn iter(&self) -> impl Iterator<Item = (usize, ObjectId, &T)> {
-        // We go via an external helper type that drives a visitor, since we're using interior mutability: borrowing the
-        // internal state would allow multiple borrows to the underlying state at the same time, should someone also
-        // update while iterating.
-        StoreIterator {
-            visitor: StoreVisitor::new(self),
-            store: self,
-        }
+        self.keys
+            .iter()
+            .enumerate()
+            .zip(self.values.iter())
+            .filter_map(move |((i, k), v)| {
+                if self.tombstones[i] {
+                    return None;
+                }
+                Some((i, *k, v))
+            })
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (usize, ObjectId, &mut T)> {
-        let r = unsafe { &mut *self.state.get() };
-        let ks = &r.keys;
-        let vs = &mut r.values;
-        let ts = &r.tombstones;
-        vs.iter_mut().enumerate().flat_map(move |(ind, val)| {
-            if ts[ind] {
-                return None;
-            }
-            Some((ind, ks[ind], val))
-        })
+        let ks = &self.keys;
+        let vs = &mut self.values;
+        let ts = &self.tombstones;
+        ks.iter()
+            .enumerate()
+            .zip(vs.iter_mut())
+            .filter_map(move |((i, k), v)| {
+                if ts[i] {
+                    return None;
+                }
+                Some((i, *k, v))
+            })
     }
 }
 
@@ -505,19 +416,6 @@ impl<T> StoreVisitor<T> {
     }
 }
 
-pub struct StoreIterator<'a, T> {
-    store: &'a Store<T>,
-    visitor: StoreVisitor<T>,
-}
-
-impl<'a, T> Iterator for StoreIterator<'a, T> {
-    type Item = (usize, ObjectId, &'a T);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.visitor.next(self.store)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -526,17 +424,17 @@ mod tests {
 
     #[test]
     fn basic_ordered_inserting() {
-        let store: Store<u64> = Store::new();
+        let mut store: Store<u64> = Store::new();
         for i in 1..=5 {
             store.insert(&ObjectId::new_testing(i), i);
         }
 
         // The index portion should contain everything.
         assert_eq!(store.index_len(), 5);
-        assert_eq!(unsafe { (*store.state.get()).pending_inserts.len() }, 0);
+        assert_eq!(store.pending_inserts.len(), 0);
 
         assert_eq!(
-            unsafe { &(*store.state.get()).keys },
+            &store.keys,
             &vec![
                 ObjectId::new_testing(1),
                 ObjectId::new_testing(2),
@@ -609,11 +507,11 @@ mod tests {
         store.insert(&ObjectId::new_testing(4), 4);
 
         assert_eq!(store.index_len(), 2);
-        assert_eq!(unsafe { (*store.state.get()).pending_inserts.len() }, 3);
+        assert_eq!(store.pending_inserts.len(), 3);
         store.commit_pending_inserts();
 
         assert_eq!(
-            unsafe { &(*store.state.get()).keys },
+            &store.keys,
             &vec![
                 ObjectId::new_testing(1),
                 ObjectId::new_testing(2),
@@ -622,14 +520,8 @@ mod tests {
                 ObjectId::new_testing(5)
             ]
         );
-        assert_eq!(
-            unsafe { &(*store.state.get()).values },
-            &vec![1, 2, 3, 4, 5]
-        );
-        assert_eq!(
-            unsafe { &(*store.state.get()).tombstones },
-            &bitvec::bitvec![0; 5]
-        );
+        assert_eq!(&store.values, &vec![1, 2, 3, 4, 5]);
+        assert_eq!(&store.tombstones, &bitvec::bitvec![0; 5]);
     }
 
     #[test]
@@ -649,12 +541,13 @@ mod tests {
         store.insert(&ObjectId::new_testing(4), 14);
 
         assert_eq!(
-            unsafe { &(*store.state.get()).keys },
+            &store.keys,
             &vec![ObjectId::new_testing(1), ObjectId::new_testing(5)]
         );
-        assert_eq!(unsafe { &(*store.state.get()).values }, &vec![11, 15]);
+        assert_eq!(&store.values, &vec![11, 15]);
         assert_eq!(
-            unsafe { &(*store.state.get()).pending_inserts }
+            store
+                .pending_inserts
                 .iter()
                 .map(|x| (*x.0, *x.1))
                 .collect::<Vec<_>>(),
@@ -668,7 +561,7 @@ mod tests {
         store.commit_pending_inserts();
 
         assert_eq!(
-            unsafe { &(*store.state.get()).keys },
+            &store.keys,
             &vec![
                 ObjectId::new_testing(1),
                 ObjectId::new_testing(2),
@@ -677,14 +570,8 @@ mod tests {
                 ObjectId::new_testing(5)
             ]
         );
-        assert_eq!(
-            unsafe { &(*store.state.get()).values },
-            &vec![11, 12, 13, 14, 15]
-        );
-        assert_eq!(
-            unsafe { &(*store.state.get()).tombstones },
-            &bitvec::bitvec![0; 5],
-        );
+        assert_eq!(&store.values, &vec![11, 12, 13, 14, 15]);
+        assert_eq!(&store.tombstones, &bitvec::bitvec![0; 5],);
     }
 
     #[test]
@@ -729,7 +616,7 @@ mod tests {
         assert!(store.delete_id(&ObjectId::new_testing(5)));
 
         assert_eq!(
-            unsafe { &(*store.state.get()).keys },
+            &store.keys,
             &vec![
                 ObjectId::new_testing(1),
                 ObjectId::new_testing(2),
@@ -738,19 +625,13 @@ mod tests {
                 ObjectId::new_testing(5)
             ]
         );
-        assert_eq!(
-            unsafe { &(*store.state.get()).values },
-            &vec![1, 2, 3, 4, 5]
-        );
-        assert_eq!(
-            unsafe { &(*store.state.get()).tombstones },
-            &bitvec::bitvec![0, 1, 0, 1, 1]
-        );
+        assert_eq!(&store.values, &vec![1, 2, 3, 4, 5]);
+        assert_eq!(&store.tombstones, &bitvec::bitvec![0, 1, 0, 1, 1]);
     }
 
     #[test]
     fn test_visitor_basic() {
-        let store: Store<u64> = Store::new();
+        let mut store: Store<u64> = Store::new();
         for i in 1..=5 {
             store.insert(&ObjectId::new_testing(i), i);
         }
@@ -766,7 +647,7 @@ mod tests {
 
     #[test]
     fn test_visitor_tombstone() {
-        let store: Store<u64> = Store::new();
+        let mut store: Store<u64> = Store::new();
         for i in 1..=10 {
             store.insert(&ObjectId::new_testing(i), i);
         }
@@ -831,7 +712,7 @@ mod tests {
 
     #[test]
     fn test_visitor_peak() {
-        let store: Store<u64> = Store::new();
+        let mut store: Store<u64> = Store::new();
         for i in 1..=5 {
             store.insert(&ObjectId::new_testing(i), i);
         }
@@ -872,8 +753,6 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(res, vec![(0, 1, 1), (1, 2, 2), (3, 4, 4), (4, 5, 5)]);
     }
-
-    #[test]
 
     /// We need to also test `iter_mut` because the implementation of it is entirely different from `iter`.
     #[test]
