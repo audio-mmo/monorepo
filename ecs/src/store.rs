@@ -44,9 +44,7 @@ use crate::object_id::ObjectId;
 ///
 /// The design here is optimized for the case in which we want to join multiple stores to perform queries in `O(1)`
 /// additional memory and `O(n)` time.  Basically, when deleting/inserting in higher level components, insert/deletions
-/// may not be visible until the next tick, but modifications are visible immediately.  The interior mutability avoids
-/// issues like needing to build up lists of changes, by allowing modification while iterating: we assume that memory is
-/// the most expensive component and take the CPU hit to make that happen.
+/// may not be visible until the next tick, but modifications are visible immediately.  
 ///
 /// Methods which don't return `Option` use normal `[]` indexing under the hood and generally panic on invariant
 /// failures.
@@ -127,9 +125,9 @@ impl<T> Store<T> {
             Err(_) if self.pending_inserts.contains_key(id) => SearchResult::Pending,
             Ok(i) => SearchResult::Found(i),
             Err(i) => {
-                // Special case: if the end of the vector is a tombstone, use that.
+                // Special case: if the end of the vector is a tombstone and we would insert at the end, use that.
                 if let Some(t) = self.tombstones.last() {
-                    if *t {
+                    if *t && i == self.tombstones.len() {
                         return SearchResult::TombstoneAvailable(self.tombstones.len() - 1);
                     }
                 }
@@ -176,6 +174,8 @@ impl<T> Store<T> {
             match res {
                 Err(i) if i < self.tombstones.len() && self.tombstones[i] => {
                     self.keys[i] = *id;
+                    // val is `&mut T`; we need to steal it because Rust doesn't understand that we're going to return
+                    // false and drop it from the vec.
                     std::mem::swap(&mut self.values[i], val);
                     self.tombstones.set(i, false);
                     false
@@ -194,7 +194,7 @@ impl<T> Store<T> {
             // The fast and common case is that we're just pushing to the end. Break out once we detect this.
             if let Some(l) = self.keys.last().cloned() {
                 if k > l {
-                    // k is consumed, we must deal with it.
+                    // k is consumed, we must deal with it here because we can't put it back on the iterator.
                     self.keys.push(k);
                     self.values.push(v);
                     self.tombstones.push(false);
@@ -354,7 +354,7 @@ impl<T> StoreVisitor<T> {
         // if we have a last seen id, sanity check it, then bump by one.
         if let Some(ref oid) = self.last_seen_id {
             if store.id_at_index(self.last_index) == *oid {
-                // Our index is good. just increment it.
+                // Our index is good. Just increment it.
                 self.last_index += 1;
             }
             // Otherwise, we need to find the nearest index to the object and base it off that.
