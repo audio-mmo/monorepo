@@ -7,6 +7,7 @@ pub mod id_factory;
 pub mod object_id;
 pub mod prelude;
 pub mod store;
+pub mod store_map;
 
 pub use ammo_ecs_derive::*;
 

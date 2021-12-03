@@ -9,6 +9,7 @@ edition = "2018"
 ahash = "0.7.6"
 ammo_ecs_derive = { path = "../ecs_derive" }
 ammo_physics = { path = "../physics" }
+atomic_refcell = "0.1.8"
 
 bitvec = "0.22.3"
 derive_more = "0.99.16"
