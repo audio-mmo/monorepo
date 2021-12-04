@@ -15,7 +15,7 @@ use anyhow::Result;
 use crate::worldlet::Worldlet;
 
 /// The system trait. See module-level documentation.
-trait System: Any + Send {
+pub trait System: Any + Send {
     /// Run the system
     ///
     /// Systems can be fallible.  If this is the case, it should only fail if the world would be left in an inconsistent

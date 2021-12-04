@@ -56,7 +56,7 @@ impl WorldletTemplateBuilder {
         self
     }
 
-    pub fn build_template(self) -> WorldletTemplate {
+    pub fn build(self) -> WorldletTemplate {
         WorldletTemplate {
             store_factory: self.store_factory_builder.build(),
         }
