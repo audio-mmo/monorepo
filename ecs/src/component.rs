@@ -26,7 +26,7 @@ pub struct IntComponentId {
 /// A component, for example an object position.
 ///
 /// Components must implement [Serialize] and [DeserializeOwned] as well as the methods on this trait.
-pub trait Component: Serialize + DeserializeOwned + Clone {
+pub trait Component: Serialize + DeserializeOwned + Clone + 'static {
     /// Get the string-based namespace for this component, for example `("ammo",
     /// "position")`.  The string namespace `"ammo"` is reserved.
     ///

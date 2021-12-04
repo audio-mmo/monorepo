@@ -16,6 +16,7 @@ use std::any::{Any, TypeId};
 
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 
+use crate::component::Component;
 use crate::frozen_map::{FrozenMap, FrozenMapBuilder};
 use crate::store::Store;
 
@@ -49,7 +50,7 @@ impl<'a, T> std::ops::DerefMut for StoreRefMut<'a, T> {
 pub struct StoreMap(FrozenMap<TypeId, Box<dyn Any>>);
 
 impl StoreMap {
-    fn get_refcell<T: 'static>(&self) -> &AtomicRefCell<Store<T>> {
+    fn get_refcell<T: Component>(&self) -> &AtomicRefCell<Store<T>> {
         self.0
             .get(&TypeId::of::<T>())
             .expect("Should find the specified type in the map")
@@ -57,7 +58,7 @@ impl StoreMap {
             .expect("Should always downcast")
     }
 
-    fn get_refcell_mut<T: 'static>(&mut self) -> &mut AtomicRefCell<Store<T>> {
+    fn get_refcell_mut<T: Component>(&mut self) -> &mut AtomicRefCell<Store<T>> {
         self.0
             .get_mut(&TypeId::of::<Store<T>>())
             .expect("Should find the specified type in the map")
@@ -66,12 +67,12 @@ impl StoreMap {
     }
 
     /// Borrow a store immutably. Panics if there is an outstanding mutable borrow.
-    pub fn borrow<T: 'static>(&self) -> StoreRef<T> {
+    pub fn borrow<T: Component>(&self) -> StoreRef<T> {
         StoreRef(self.get_refcell().borrow())
     }
 
     /// Borrow a store mutably. Panics if there are any other borrows.
-    pub fn borrow_mut<T: 'static>(&self) -> StoreRefMut<T> {
+    pub fn borrow_mut<T: Component>(&self) -> StoreRefMut<T> {
         StoreRefMut(self.get_refcell().borrow_mut())
     }
 
@@ -79,7 +80,7 @@ impl StoreMap {
     ///
     /// This always succeeds if the type is present, since having a mutable reference as the caller is a proof that no
     /// immutable borrows are outstanding.
-    pub fn get_mut<T: 'static>(&mut self) -> &mut Store<T> {
+    pub fn get_mut<T: Component>(&mut self) -> &mut Store<T> {
         self.get_refcell_mut().get_mut()
     }
 }
@@ -91,7 +92,7 @@ impl StoreMap {
 type StoreMapInserter = fn(&mut FrozenMapBuilder<TypeId, Box<dyn Any>>) -> ();
 
 /// helper method, placed in a vec of callbacks to represent what types to add to the map at runtime.
-fn insert_store<T: Any>(builder: &mut FrozenMapBuilder<TypeId, Box<dyn Any>>) {
+fn insert_store<T: Component>(builder: &mut FrozenMapBuilder<TypeId, Box<dyn Any>>) {
     builder.add(
         TypeId::of::<T>(),
         Box::new(AtomicRefCell::new(Store::<T>::new())),
@@ -119,7 +120,7 @@ impl StoreMapFactoryBuilder {
     }
 
     /// Registera type with this map.
-    pub fn register<T: Any>(&mut self) -> &mut Self {
+    pub fn register<T: Component>(&mut self) -> &mut Self {
         self.0.push(insert_store::<T>);
         self
     }
@@ -133,12 +134,11 @@ impl StoreMapFactoryBuilder {
 mod tests {
     use super::*;
 
-    struct Type1(u64);
-    struct Type2(u64);
+    use crate::components::{Ambiance, Position};
 
     fn build_test_map() -> StoreMap {
         let mut fb = StoreMapFactoryBuilder::new();
-        fb.register::<Type1>().register::<Type2>();
+        fb.register::<Position>().register::<Ambiance>();
         let fact = fb.build();
         fact.generate()
     }
@@ -147,18 +147,18 @@ mod tests {
     fn test_basic() {
         let map = build_test_map();
         {
-            let _s1 = map.borrow::<Type1>();
-            let _s2 = map.borrow::<Type2>();
+            let _s1 = map.borrow::<Position>();
+            let _s2 = map.borrow::<Ambiance>();
         }
         // And now a mutable borrow shouldn't panic.
-        map.borrow::<Type1>();
+        map.borrow::<Position>();
     }
 
     #[test]
     #[should_panic]
     fn test_immutable_mutable_fails() {
         let map = build_test_map();
-        let _borrow = map.borrow::<Type1>();
-        map.borrow_mut::<Type1>();
+        let _borrow = map.borrow::<Position>();
+        map.borrow_mut::<Position>();
     }
 }
