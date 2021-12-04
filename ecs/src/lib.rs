@@ -8,6 +8,7 @@ pub mod object_id;
 pub mod prelude;
 pub mod store;
 pub mod store_map;
+pub mod system;
 pub mod worldlet;
 
 pub use ammo_ecs_derive::*;
