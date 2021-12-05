@@ -8,5 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.51"
 crossbeam = "0.8.1"
+rand = "0.8.4"
+rand_xorshift = "0.3.0"
 rayon = "1.5.1"
 synthizer = { version = "0.4.3", features = ["asset_lru"] }

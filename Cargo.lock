@@ -100,6 +100,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "crossbeam",
+ "rand",
+ "rand_xorshift",
  "rayon",
  "synthizer",
 ]
