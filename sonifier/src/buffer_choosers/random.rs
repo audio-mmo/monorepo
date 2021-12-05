@@ -5,9 +5,14 @@ use rand::prelude::*;
 
 use crate::buffer::Buffer;
 
+struct State {
+    rng: rand_xorshift::XorShiftRng,
+    last: Option<usize>,
+}
+
 pub(crate) struct RandomChooser {
     buffers: Vec<Buffer>,
-    rng: Mutex<rand_xorshift::XorShiftRng>,
+    state: Mutex<State>,
 }
 
 impl RandomChooser {
@@ -17,12 +22,21 @@ impl RandomChooser {
         }
         Ok(RandomChooser {
             buffers,
-            rng: Mutex::new(rand_xorshift::XorShiftRng::from_entropy()),
+            state: Mutex::new(State {
+                rng: rand_xorshift::XorShiftRng::from_entropy(),
+                last: None,
+            }),
         })
     }
 
     pub(crate) fn choose(&self) -> Buffer {
-        let ind = self.rng.lock().unwrap().gen_range(0..self.buffers.len());
-        self.buffers[ind].clone()
+        // We actually want random, but not reusing the last one we chose.
+        loop {
+            let mut state = self.state.lock().unwrap();
+            let ind = state.rng.gen_range(0..self.buffers.len());
+            if self.buffers.len() == 1 || state.last != Some(ind) {
+                return self.buffers[ind].clone();
+            }
+        }
     }
 }
