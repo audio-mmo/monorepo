@@ -1,5 +1,4 @@
-use std::cell::RefCell;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
 use crossbeam::channel as chan;
@@ -22,19 +21,33 @@ enum BufferState {
 }
 
 /// A buffer.  This is created from the decoding pool.
+///
+/// These are internally reference counted. Clone creates a second buffer referencing the same data.
+#[derive(Clone)]
 pub(crate) struct Buffer {
-    state: RefCell<BufferState>,
+    state: Arc<RwLock<BufferState>>,
 }
 
 impl Buffer {
     pub(crate) fn new_decoding(receiver: chan::Receiver<Result<Arc<syz::Buffer>>>) -> Buffer {
         Buffer {
-            state: RefCell::new(BufferState::Decoding { receiver }),
+            state: Arc::new(RwLock::new(BufferState::Decoding { receiver })),
         }
     }
 
     fn await_decoding_finished(&self) -> Result<Arc<syz::Buffer>> {
-        let (newstate, res): (Option<BufferState>, Arc<syz::Buffer>) = match &*self.state.borrow() {
+        // First try the read-side, as this is the common case.
+        {
+            let guard = self.state.read().unwrap();
+            match &*guard {
+                BufferState::Decoded { ref buffer } => return Ok(buffer.clone()),
+                BufferState::Failed => anyhow::bail!("This buffer failed to decode"),
+                _ => {}
+            }
+        }
+
+        let mut guard = self.state.write().unwrap();
+        let (newstate, res): (Option<BufferState>, Arc<syz::Buffer>) = match *guard {
             BufferState::Decoded { ref buffer } => (None, buffer.clone()),
             BufferState::Failed => {
                 anyhow::bail!("This buffer already failed to decode. Not trying again");
@@ -51,7 +64,7 @@ impl Buffer {
         };
 
         if let Some(s) = newstate {
-            self.state.replace(s);
+            *guard = s;
         }
         Ok(res)
     }
