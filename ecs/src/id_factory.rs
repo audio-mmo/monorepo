@@ -43,8 +43,6 @@ pub struct IdFactory {
 impl IdFactory {
     /// generate an id factory from the system timestamp and some randomness.
     pub fn new() -> IdFactory {
-        use std::convert::TryFrom;
-
         let now = std::time::SystemTime::now();
         let since_epoch = now
             .duration_since(std::time::SystemTime::UNIX_EPOCH)

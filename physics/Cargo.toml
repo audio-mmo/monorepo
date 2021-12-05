@@ -1,8 +1,11 @@
 [package]
 name = "ammo_physics"
 version = "0.1.0"
-authors = ["bradjrenshaw <bradjrenshaw@gmail.com>"]
-edition = "2018"
+authors = [
+    "bradjrenshaw <bradjrenshaw@gmail.com>",
+    "Austin Hicks <ahicks@ahicks.io>",
+]
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
