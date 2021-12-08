@@ -4,6 +4,8 @@ use anyhow::Result;
 use crossbeam::channel as chan;
 use synthizer as syz;
 
+use crate::Engine;
+
 /// Internal state for a buffer.
 enum BufferState {
     /// This buffer is decoding, which means that it is enqueued with the decoding pool.
@@ -74,3 +76,7 @@ impl Buffer {
         self.await_decoding_finished()
     }
 }
+
+/// A reference-counted handle to an audio buffer.
+#[derive(Clone)]
+pub struct BufferHandle(Arc<Engine>, Arc<Buffer>);

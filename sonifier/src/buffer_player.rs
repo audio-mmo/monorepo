@@ -5,6 +5,7 @@ use synthizer as syz;
 
 use crate::buffer::Buffer;
 use crate::object::Connectable;
+use crate::Engine;
 
 /// Plays buffers and offers basic controls.
 ///
@@ -47,3 +48,9 @@ impl Connectable for BufferPlayer {
         Ok(())
     }
 }
+
+/// A reference-counted handle to a buffer player.
+///
+/// Buffer players know how to play buffers with optional looping, without any extra fancy logic on top of that.
+#[derive(Clone)]
+pub struct BufferPlayerHandle(Arc<Engine>, Arc<BufferPlayer>);

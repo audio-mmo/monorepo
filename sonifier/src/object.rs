@@ -1,5 +1,9 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use synthizer as syz;
+
+use crate::Engine;
 
 /// encapsulates a Synthizer source, plus the position etc. of that source.
 pub(crate) struct Object {
@@ -34,3 +38,7 @@ pub(crate) trait Connectable {
     fn connect(&self, src: &syz::Source) -> Result<()>;
     fn disconnect(&self, src: &syz::Source) -> Result<()>;
 }
+
+/// A reference-counted handle to an audio object.
+#[derive(Clone)]
+pub struct ObjectHandle(Arc<Engine>, Arc<Object>);
