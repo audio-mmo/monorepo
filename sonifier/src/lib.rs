@@ -3,6 +3,7 @@
 pub(crate) mod buffer;
 pub(crate) mod buffer_choosers;
 pub(crate) mod buffer_player;
+pub(crate) mod command;
 pub(crate) mod decoding_pool;
 pub(crate) mod object;
 
