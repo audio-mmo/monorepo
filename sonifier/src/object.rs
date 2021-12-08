@@ -19,4 +19,18 @@ impl Object {
             position: initial_pos,
         })
     }
+
+    pub(crate) fn connect_to_object(&self, what: &dyn ConnectionSupport) -> Result<()> {
+        what.connect(&self.source.clone().into())
+    }
+
+    pub(crate) fn disconnect_from_object(&self, what: &dyn ConnectionSupport) -> Result<()> {
+        what.disconnect(&self.source.clone().into())
+    }
+}
+
+/// Internal trait which encapsulates over everything that may connect to an object.
+pub(crate) trait ConnectionSupport {
+    fn connect(&self, src: &syz::Source) -> Result<()>;
+    fn disconnect(&self, src: &syz::Source) -> Result<()>;
 }
