@@ -98,6 +98,7 @@ dependencies = [
 name = "ammo_sonifier"
 version = "0.1.0"
 dependencies = [
+ "ammo_nzslab",
  "anyhow",
  "crossbeam",
  "rand",

@@ -4,7 +4,7 @@ use anyhow::Result;
 use synthizer as syz;
 
 use crate::buffer::Buffer;
-use crate::object::ConnectionSupport;
+use crate::object::Connectable;
 
 /// Plays buffers and offers basic controls.
 ///
@@ -36,7 +36,7 @@ impl BufferPlayer {
     }
 }
 
-impl ConnectionSupport for BufferPlayer {
+impl Connectable for BufferPlayer {
     fn connect(&self, src: &syz::Source) -> Result<()> {
         src.add_generator(&self.generator)?;
         Ok(())
