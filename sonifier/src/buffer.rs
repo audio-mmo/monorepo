@@ -29,7 +29,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new_decoding(receiver: chan::Receiver<Result<Arc<syz::Buffer>>>) -> Buffer {
+    pub(crate) fn new_decoding(receiver: chan::Receiver<Result<Arc<syz::Buffer>>>) -> Buffer {
         Buffer {
             state: Arc::new(RwLock::new(BufferState::Decoding { receiver })),
         }
@@ -70,7 +70,7 @@ impl Buffer {
     }
 
     /// get the Synthizer buffer, possibly blocking if decoding is still in progress.
-    pub fn as_synthizer(&mut self) -> Result<Arc<syz::Buffer>> {
+    pub(crate) fn as_synthizer(&mut self) -> Result<Arc<syz::Buffer>> {
         self.await_decoding_finished()
     }
 }
