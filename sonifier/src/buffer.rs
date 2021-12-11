@@ -72,11 +72,11 @@ impl Buffer {
     }
 
     /// get the Synthizer buffer, possibly blocking if decoding is still in progress.
-    pub(crate) fn as_synthizer(&mut self) -> Result<Arc<syz::Buffer>> {
+    pub(crate) fn as_synthizer(&self) -> Result<Arc<syz::Buffer>> {
         self.await_decoding_finished()
     }
 }
 
 /// A reference-counted handle to an audio buffer.
 #[derive(Clone)]
-pub struct BufferHandle(Arc<Engine>, Arc<Buffer>);
+pub struct BufferHandle(pub(crate) Arc<Engine>, pub(crate) Arc<Buffer>);

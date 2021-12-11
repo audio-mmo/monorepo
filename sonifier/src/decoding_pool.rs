@@ -9,7 +9,7 @@ use synthizer as syz;
 use crate::buffer::Buffer;
 
 /// A trait abstracting over getting from a string key to a synthizer buffer.
-pub(crate) trait BufferSource: Send + Sync {
+pub trait BufferSource: Send + Sync {
     fn decode_key(&self, key: &str) -> Result<Arc<syz::Buffer>>;
 }
 

@@ -99,6 +99,7 @@ name = "ammo_sonifier"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "atomic_refcell",
  "crossbeam",
  "log",
  "rand",
@@ -1300,9 +1301,9 @@ dependencies = [
 
 [[package]]
 name = "synthizer"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37903a275022f170fee3acffd9970df9fdcd58628b96123c8e02cddc1a852b6d"
+checksum = "25cebd54be7803fc1df2462bf51298f829475d1c660f99cb3b2a96791a72390e"
 dependencies = [
  "asset_lru",
  "lazy_static",
