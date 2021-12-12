@@ -25,14 +25,16 @@ const DECODING_QUEUE_LENGTH: usize = 1024;
 const COMMAND_QUEUE_LENGTH: usize = 1024;
 
 pub(crate) struct EngineState {
-    context: syz::Context,
-    decoding_pool: DecodingPool,
-    music_state: atomic_refcell::AtomicRefCell<Option<MusicState>>,
+    pub(crate) context: syz::Context,
+    pub(crate) decoding_pool: Arc<DecodingPool>,
+    pub(crate) music_state: atomic_refcell::AtomicRefCell<Option<MusicState>>,
+    command_receiver: chan::Receiver<Command>,
 }
 
 pub struct Engine {
-    state: Arc<EngineState>,
+    context: syz::Context,
     command_sender: chan::Sender<Command>,
+    decoding_pool: Arc<DecodingPool>,
 }
 
 pub(crate) struct MusicState {
@@ -40,9 +42,9 @@ pub(crate) struct MusicState {
     source: syz::DirectSource,
 }
 
-fn engine_thread(context: syz::Context, cmd_receiver: chan::Receiver<Command>) {
-    for c in cmd_receiver.iter() {
-        c.execute(&context);
+fn engine_thread(state: EngineState) {
+    for c in state.command_receiver.iter() {
+        c.execute(&state);
     }
 }
 
@@ -78,21 +80,29 @@ impl EngineState {
 
 impl Engine {
     pub fn new(buffer_source: Box<dyn IoProvider>) -> Result<Arc<Engine>> {
-        let decoding_pool =
-            DecodingPool::new(DECODING_CONCURRENCY, DECODING_QUEUE_LENGTH, buffer_source)?;
+        let decoding_pool = Arc::new(DecodingPool::new(
+            DECODING_CONCURRENCY,
+            DECODING_QUEUE_LENGTH,
+            buffer_source,
+        )?);
         let (command_sender, command_receiver) = chan::bounded(COMMAND_QUEUE_LENGTH);
         let context = syz::Context::new()?;
-        let bg_context = context.clone();
         context.orientation().set((0.0, 1.0, 0.0, 0.0, 0.0, 1.0))?;
 
-        std::thread::spawn(move || engine_thread(bg_context, command_receiver));
+        let bg_context = context.clone();
+        let bg_pool = decoding_pool.clone();
+        std::thread::spawn(move || {
+            engine_thread(EngineState {
+                context: bg_context,
+                decoding_pool: bg_pool,
+                music_state: Default::default(),
+                command_receiver,
+            })
+        });
 
         Ok(Arc::new(Engine {
-            state: Arc::new(EngineState {
-                context,
-                decoding_pool,
-                music_state: Default::default(),
-            }),
+            context,
+            decoding_pool,
             command_sender,
         }))
     }
@@ -136,7 +146,7 @@ impl Engine {
         debug!("Creation request for buffer using asset {}", key);
         Ok(BufferHandle(
             self.clone(),
-            Arc::new(self.state.decoding_pool.decode(key.into())?),
+            Arc::new(self.decoding_pool.decode(key.into())?),
         ))
     }
 
@@ -160,13 +170,12 @@ impl Engine {
     }
 
     pub fn set_listener_position(&self, pos: (f64, f64, f64)) -> Result<()> {
-        self.state.context.position().set(pos)?;
+        self.context.position().set(pos)?;
         Ok(())
     }
 
     pub fn set_listener_orientation(&self, at: (f64, f64, f64), up: (f64, f64, f64)) -> Result<()> {
-        self.state
-            .context
+        self.context
             .orientation()
             .set((at.0, at.1, at.2, up.0, up.1, up.2))?;
         Ok(())
@@ -176,13 +185,13 @@ impl Engine {
     ///
     /// Music can be stopped with `clear_music`.
     pub fn set_music(self: &Arc<Engine>, key: &str) -> Result<()> {
-        let payload = CommandPayload::SetMusic(self.state.clone(), key.to_string());
+        let payload = CommandPayload::SetMusic(key.to_string());
         self.send_command(payload)
     }
 
     /// Clear/stop music.
     pub fn clear_music(self: &Arc<Self>) -> Result<()> {
-        let payload = CommandPayload::ClearMusic(self.state.clone());
+        let payload = CommandPayload::ClearMusic();
         self.send_command(payload)
     }
 }

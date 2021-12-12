@@ -4,7 +4,6 @@ use std::sync::Arc;
 use anyhow::Result;
 use crossbeam::channel as chan;
 use log::*;
-use synthizer as syz;
 
 use crate::bootstrap::Bootstrap;
 use crate::engine::EngineState;
@@ -23,8 +22,8 @@ pub(crate) enum CommandPayload {
         arg1: Arc<dyn Any + Sync + Send>,
         arg2: (f64, f64, f64, f64, f64, f64),
     },
-    SetMusic(Arc<EngineState>, String),
-    ClearMusic(Arc<EngineState>),
+    SetMusic(String),
+    ClearMusic(),
 }
 
 pub(crate) struct Command {
@@ -34,9 +33,9 @@ pub(crate) struct Command {
 }
 
 impl CommandPayload {
-    fn execute(self, ctx: &syz::Context) -> Result<()> {
+    fn execute(self, state: &EngineState) -> Result<()> {
         match self {
-            CommandPayload::Bootstrap(x) => x.bootstrap(ctx),
+            CommandPayload::Bootstrap(x) => x.bootstrap(&state.context),
             CommandPayload::Connect(src, dest) => dest.connect_to_object(&*src),
             CommandPayload::Disconnect(src, dest) => dest.disconnect_from_object(&*src),
             CommandPayload::RunCallback {
@@ -44,8 +43,8 @@ impl CommandPayload {
                 arg1,
                 arg2,
             } => callback(arg1, arg2),
-            CommandPayload::SetMusic(eng, key) => eng.set_music_bg(&key),
-            CommandPayload::ClearMusic(eng) => eng.clear_music_bg(),
+            CommandPayload::SetMusic(key) => state.set_music_bg(&key),
+            CommandPayload::ClearMusic() => state.clear_music_bg(),
         }
     }
 }
@@ -61,8 +60,8 @@ impl Command {
         }
     }
 
-    pub(crate) fn execute(self, ctx: &syz::Context) {
-        let res = self.payload.execute(ctx).map_err(|e| {
+    pub(crate) fn execute(self, state: &EngineState) {
+        let res = self.payload.execute(state).map_err(|e| {
             error!("Error executing audio command: {:?}", e);
             e
         });
