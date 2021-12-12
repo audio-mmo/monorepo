@@ -27,7 +27,7 @@ const COMMAND_QUEUE_LENGTH: usize = 1024;
 pub(crate) struct EngineState {
     pub(crate) context: syz::Context,
     pub(crate) decoding_pool: Arc<DecodingPool>,
-    pub(crate) music_state: atomic_refcell::AtomicRefCell<Option<MusicState>>,
+    pub(crate) music_state: Option<MusicState>,
     command_receiver: chan::Receiver<Command>,
 }
 
@@ -42,7 +42,7 @@ pub(crate) struct MusicState {
     source: syz::DirectSource,
 }
 
-fn engine_thread(state: EngineState) {
+fn engine_thread(mut state: EngineState) {
     loop {
         let command = match state.command_receiver.recv() {
             Ok(x) => x,
@@ -52,7 +52,7 @@ fn engine_thread(state: EngineState) {
             }
         };
 
-        command.execute(&state);
+        command.execute(&mut state);
     }
 }
 
@@ -73,15 +73,15 @@ impl MusicState {
 
 impl EngineState {
     /// Always called from the background thread.  Configure music.
-    pub(crate) fn set_music_bg(&self, key: &str) -> Result<()> {
+    pub(crate) fn set_music_bg(&mut self, key: &str) -> Result<()> {
         let sh = self.decoding_pool.get_stream_handle(key)?;
         let ms = MusicState::new(&self.context, sh)?;
-        *self.music_state.borrow_mut() = Some(ms);
+        self.music_state = Some(ms);
         Ok(())
     }
 
-    pub(crate) fn clear_music_bg(&self) -> Result<()> {
-        *self.music_state.borrow_mut() = None;
+    pub(crate) fn clear_music_bg(&mut self) -> Result<()> {
+        self.music_state = None;
         Ok(())
     }
 }

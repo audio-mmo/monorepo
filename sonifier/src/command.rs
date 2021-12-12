@@ -33,7 +33,7 @@ pub(crate) struct Command {
 }
 
 impl CommandPayload {
-    fn execute(self, state: &EngineState) -> Result<()> {
+    fn execute(self, state: &mut EngineState) -> Result<()> {
         match self {
             CommandPayload::Bootstrap(x) => x.bootstrap(&state.context),
             CommandPayload::Connect(src, dest) => dest.connect_to_object(&*src),
@@ -60,7 +60,7 @@ impl Command {
         }
     }
 
-    pub(crate) fn execute(self, state: &EngineState) {
+    pub(crate) fn execute(self, state: &mut EngineState) {
         let res = self.payload.execute(state).map_err(|e| {
             error!("Error executing audio command: {:?}", e);
             e
