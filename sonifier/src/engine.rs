@@ -8,7 +8,7 @@ use log::*;
 use synthizer as syz;
 
 use crate::bootstrap::Bootstrap;
-use crate::buffer::BufferHandle;
+use crate::buffer::{Buffer, BufferHandle};
 use crate::buffer_player::{BufferPlayer, BufferPlayerHandle};
 use crate::command::{Command, CommandPayload};
 use crate::decoding_pool::DecodingPool;
@@ -85,6 +85,46 @@ impl EngineState {
         Ok(())
     }
 
+    /// Hang onto an Arc until at least a given duration has elapsed.
+    pub fn retain_until<T: Any>(&mut self, what: Arc<T>, duration: Duration) {
+        // Introduce some slop here, so that if maintenance ticks happen early etc. we don't release too soon.
+        self.retain_until
+            .push((duration + MAINTENANCE_TICK_INTERVAL * 5, what));
+    }
+
+    pub(crate) fn ui_sound_direct(&mut self, buff: Arc<Buffer>, gain: f64) -> Result<()> {
+        let lcfg = syz::DeleteBehaviorConfigBuilder::new().linger(true).build();
+        let gen = syz::BufferGenerator::new(&self.context)?;
+        let src = syz::DirectSource::new(&self.context)?;
+        let sbuf = buff.as_synthizer()?;
+        gen.buffer().set(&*sbuf)?;
+        gen.gain().set(gain)?;
+        gen.config_delete_behavior(&lcfg)?;
+        src.config_delete_behavior(&lcfg)?;
+        src.add_generator(&gen)?;
+
+        let dur = Duration::from_secs_f64(sbuf.get_length_in_seconds()? + 0.1);
+        // Keep the Synthizer buffer, not the user-specified one.
+        self.retain_until(sbuf, dur);
+        Ok(())
+    }
+
+    pub(crate) fn ui_sound_panned(&mut self, buff: Arc<Buffer>, gain: f64, pan: f64) -> Result<()> {
+        let lcfg = syz::DeleteBehaviorConfigBuilder::new().linger(true).build();
+        let gen = syz::BufferGenerator::new(&self.context)?;
+        gen.gain().set(gain)?;
+        let src = syz::ScalarPannedSource::new(&self.context, syz::PannerStrategy::Stereo, pan)?;
+        let sbuf = buff.as_synthizer()?;
+        gen.buffer().set(&*sbuf)?;
+        gen.config_delete_behavior(&lcfg)?;
+        src.config_delete_behavior(&lcfg)?;
+        src.add_generator(&gen)?;
+        let dur = Duration::from_secs_f64(sbuf.get_length_in_seconds()? + 0.1);
+        // Keep the Synthizer buffer, not the user-specified one.
+        self.retain_until(sbuf, dur);
+        Ok(())
+    }
+
     fn maintenance_retain_until(&mut self, since_last: Duration) {
         // Retain doesn't give us mutable access; do the subtractions first.
         for (ref mut k, _) in self.retain_until.iter_mut() {
@@ -99,13 +139,6 @@ impl EngineState {
     /// Takes the time since the last maintenance tick.
     fn run_maintenance(&mut self, since_last: Duration) {
         self.maintenance_retain_until(since_last);
-    }
-
-    /// Hang onto an Arc until at least a given duration has elapsed.
-    pub fn retain_until<T: Any>(&mut self, what: Arc<T>, duration: Duration) {
-        // Introduce some slop here, so that if maintenance ticks happen early etc. we don't release too soon.
-        self.retain_until
-            .push((duration + MAINTENANCE_TICK_INTERVAL * 5, what));
     }
 }
 
@@ -260,6 +293,34 @@ impl Engine {
     /// Clear/stop music.
     pub fn clear_music(self: &Arc<Self>) -> Result<()> {
         let payload = CommandPayload::ClearMusic();
+        self.send_command(payload)
+    }
+
+    /// Play a UI sound directly to the speakers.
+    ///
+    /// This is useful for stereo assets and other things that you don't want to pan; with mono assets, this is
+    /// equivalent to a pan of 0.0.
+    pub fn ui_sound_direct(&self, buffer: &BufferHandle, gain: f64) -> Result<()> {
+        let payload = CommandPayload::UiSoundDirect {
+            buffer: buffer.1.clone(),
+            gain,
+        };
+        self.send_command(payload)
+    }
+
+    /// Play a panned UI sound.
+    ///
+    /// Pan is in the range -1.0 (left) to 1.0 (right) inclusive.
+    pub fn ui_sound_panned(&self, buffer: &BufferHandle, gain: f64, pan: f64) -> Result<()> {
+        if !(-1.0f64..=1.0).contains(&pan) {
+            anyhow::bail!("pan must be in the range -1.0..=1.0");
+        }
+
+        let payload = CommandPayload::UiSoundPanned {
+            buffer: buffer.1.clone(),
+            gain,
+            pan,
+        };
         self.send_command(payload)
     }
 }

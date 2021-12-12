@@ -6,6 +6,7 @@ use crossbeam::channel as chan;
 use log::*;
 
 use crate::bootstrap::Bootstrap;
+use crate::buffer::Buffer;
 use crate::engine::EngineState;
 use crate::object::{Connectable, Object};
 
@@ -24,6 +25,15 @@ pub(crate) enum CommandPayload {
     },
     SetMusic(String),
     ClearMusic(),
+    UiSoundDirect {
+        buffer: Arc<Buffer>,
+        gain: f64,
+    },
+    UiSoundPanned {
+        buffer: Arc<Buffer>,
+        gain: f64,
+        pan: f64,
+    },
 }
 
 pub(crate) struct Command {
@@ -45,6 +55,10 @@ impl CommandPayload {
             } => callback(arg1, arg2),
             CommandPayload::SetMusic(key) => state.set_music_bg(&key),
             CommandPayload::ClearMusic() => state.clear_music_bg(),
+            CommandPayload::UiSoundDirect { buffer, gain } => state.ui_sound_direct(buffer, gain),
+            CommandPayload::UiSoundPanned { buffer, gain, pan } => {
+                state.ui_sound_panned(buffer, gain, pan)
+            }
         }
     }
 }
