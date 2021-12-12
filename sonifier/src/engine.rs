@@ -1,4 +1,6 @@
+use std::any::Any;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use crossbeam::{channel as chan, select};
@@ -24,6 +26,10 @@ const DECODING_QUEUE_LENGTH: usize = 1024;
 /// How many commands will we allow to be outstanding at once?
 const COMMAND_QUEUE_LENGTH: usize = 1024;
 
+/// How often do we wake up for non-realtime timeouts, etc?
+const MAINTENANCE_TICK_INTERVAL: Duration = Duration::from_millis(100);
+const MAINTENANCE_TICK_JITTER: Duration = Duration::from_millis(50);
+
 pub(crate) struct EngineState {
     pub(crate) context: syz::Context,
     pub(crate) decoding_pool: Arc<DecodingPool>,
@@ -31,6 +37,11 @@ pub(crate) struct EngineState {
     command_receiver: chan::Receiver<Command>,
     /// We use this channel closing as a signal to the background thread to terminate.
     shutdown_receiver: chan::Receiver<()>,
+    /// This vector contains things that we want to hold onto until a specific duration has elapsed.
+    ///
+    /// We use Durations as the keys because in future we're going to want to be able to pause the countdown, so just
+    /// using `Instant` isn't sufficient.  When the duration goes to 0, we delete the object.
+    retain_until: Vec<(Duration, Arc<dyn Any>)>,
 }
 
 pub struct Engine {
@@ -73,13 +84,55 @@ impl EngineState {
         self.music_state = None;
         Ok(())
     }
+
+    fn maintenance_retain_until(&mut self, since_last: Duration) {
+        // Retain doesn't give us mutable access; do the subtractions first.
+        for (ref mut k, _) in self.retain_until.iter_mut() {
+            *k = k.saturating_sub(since_last);
+        }
+
+        self.retain_until.retain(|(k, _)| *k != Duration::ZERO);
+    }
+
+    /// Run maintenance.
+    ///
+    /// Takes the time since the last maintenance tick.
+    fn run_maintenance(&mut self, since_last: Duration) {
+        self.maintenance_retain_until(since_last);
+    }
+
+    /// Hang onto an Arc until at least a given duration has elapsed.
+    pub fn retain_until<T: Any>(&mut self, what: Arc<T>, duration: Duration) {
+        // Introduce some slop here, so that if maintenance ticks happen early etc. we don't release too soon.
+        self.retain_until
+            .push((duration + MAINTENANCE_TICK_INTERVAL * 5, what));
+    }
+}
+
+fn simple_jitter(dur: Duration, jitter: Duration) -> Duration {
+    use rand::prelude::*;
+
+    let scale = thread_rng().gen_range(0.0f64..=1.0);
+    dur + Duration::from_secs_f64(jitter.as_secs_f64() * scale)
 }
 
 fn engine_thread(mut state: EngineState) {
+    let mut last_maintenance_time = Instant::now();
+
     loop {
+        let maintenance_receiver = chan::after(simple_jitter(
+            MAINTENANCE_TICK_INTERVAL,
+            MAINTENANCE_TICK_JITTER,
+        ));
+
         select! {
             recv(state.command_receiver)-> r => if let Ok(command) = r {
                 command.execute(&mut state);
+            },
+            recv(maintenance_receiver)-> _ => {
+                let now = Instant::now();
+                state.run_maintenance(now -last_maintenance_time);
+                last_maintenance_time = now;
             },
             recv(state.shutdown_receiver) -> _ => {
                 info!("Engine thread shutting down");
@@ -110,6 +163,7 @@ impl Engine {
                 music_state: Default::default(),
                 command_receiver,
                 shutdown_receiver,
+                retain_until: Vec::with_capacity(256),
             })
         });
 
