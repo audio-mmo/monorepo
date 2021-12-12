@@ -24,11 +24,15 @@ const DECODING_QUEUE_LENGTH: usize = 1024;
 /// How many commands will we allow to be outstanding at once?
 const COMMAND_QUEUE_LENGTH: usize = 1024;
 
-pub struct Engine {
+pub(crate) struct EngineState {
     context: syz::Context,
     decoding_pool: DecodingPool,
-    command_sender: chan::Sender<Command>,
     music_state: atomic_refcell::AtomicRefCell<Option<MusicState>>,
+}
+
+pub struct Engine {
+    state: Arc<EngineState>,
+    command_sender: chan::Sender<Command>,
 }
 
 pub(crate) struct MusicState {
@@ -57,6 +61,21 @@ impl MusicState {
     }
 }
 
+impl EngineState {
+    /// Always called from the background thread.  Configure music.
+    pub(crate) fn set_music_bg(&self, key: &str) -> Result<()> {
+        let sh = self.decoding_pool.get_stream_handle(key)?;
+        let ms = MusicState::new(&self.context, sh)?;
+        *self.music_state.borrow_mut() = Some(ms);
+        Ok(())
+    }
+
+    pub(crate) fn clear_music_bg(&self) -> Result<()> {
+        *self.music_state.borrow_mut() = None;
+        Ok(())
+    }
+}
+
 impl Engine {
     pub fn new(buffer_source: Box<dyn IoProvider>) -> Result<Arc<Engine>> {
         let decoding_pool =
@@ -69,10 +88,12 @@ impl Engine {
         std::thread::spawn(move || engine_thread(bg_context, command_receiver));
 
         Ok(Arc::new(Engine {
-            context,
-            decoding_pool,
+            state: Arc::new(EngineState {
+                context,
+                decoding_pool,
+                music_state: Default::default(),
+            }),
             command_sender,
-            music_state: Default::default(),
         }))
     }
 
@@ -86,7 +107,6 @@ impl Engine {
     #[allow(clippy::type_complexity)]
     pub(crate) fn run_callback(
         &self,
-
         callback: fn(
             Arc<dyn std::any::Any + Send + Sync>,
             (f64, f64, f64, f64, f64, f64),
@@ -116,7 +136,7 @@ impl Engine {
         debug!("Creation request for buffer using asset {}", key);
         Ok(BufferHandle(
             self.clone(),
-            Arc::new(self.decoding_pool.decode(key.into())?),
+            Arc::new(self.state.decoding_pool.decode(key.into())?),
         ))
     }
 
@@ -140,27 +160,15 @@ impl Engine {
     }
 
     pub fn set_listener_position(&self, pos: (f64, f64, f64)) -> Result<()> {
-        self.context.position().set(pos)?;
+        self.state.context.position().set(pos)?;
         Ok(())
     }
 
     pub fn set_listener_orientation(&self, at: (f64, f64, f64), up: (f64, f64, f64)) -> Result<()> {
-        self.context
+        self.state
+            .context
             .orientation()
             .set((at.0, at.1, at.2, up.0, up.1, up.2))?;
-        Ok(())
-    }
-
-    /// Always called from the background thread.  Configure music.
-    pub(crate) fn set_music_bg(self: &Arc<Engine>, key: &str) -> Result<()> {
-        let sh = self.decoding_pool.get_stream_handle(key)?;
-        let ms = MusicState::new(&self.context, sh)?;
-        *self.music_state.borrow_mut() = Some(ms);
-        Ok(())
-    }
-
-    pub(crate) fn clear_music_bg(&self) -> Result<()> {
-        *self.music_state.borrow_mut() = None;
         Ok(())
     }
 
@@ -168,13 +176,13 @@ impl Engine {
     ///
     /// Music can be stopped with `clear_music`.
     pub fn set_music(self: &Arc<Engine>, key: &str) -> Result<()> {
-        let payload = CommandPayload::SetMusic(self.clone(), key.to_string());
+        let payload = CommandPayload::SetMusic(self.state.clone(), key.to_string());
         self.send_command(payload)
     }
 
     /// Clear/stop music.
     pub fn clear_music(self: &Arc<Self>) -> Result<()> {
-        let payload = CommandPayload::ClearMusic(self.clone());
+        let payload = CommandPayload::ClearMusic(self.state.clone());
         self.send_command(payload)
     }
 }
