@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use crossbeam::channel as chan;
+use crossbeam::{channel as chan, select};
 use log::*;
 use synthizer as syz;
 
@@ -42,20 +42,6 @@ pub(crate) struct MusicState {
     source: syz::DirectSource,
 }
 
-fn engine_thread(mut state: EngineState) {
-    loop {
-        let command = match state.command_receiver.recv() {
-            Ok(x) => x,
-            Err(_) => {
-                info!("Engine background thread shutting down");
-                return;
-            }
-        };
-
-        command.execute(&mut state);
-    }
-}
-
 impl MusicState {
     pub(crate) fn new(ctx: &syz::Context, stream: syz::StreamHandle) -> Result<MusicState> {
         let generator = syz::StreamingGenerator::from_stream_handle(ctx, stream)?;
@@ -83,6 +69,19 @@ impl EngineState {
     pub(crate) fn clear_music_bg(&mut self) -> Result<()> {
         self.music_state = None;
         Ok(())
+    }
+}
+
+fn engine_thread(mut state: EngineState) {
+    loop {
+        select! {
+            recv(state.command_receiver)-> r => if let Ok(command) = r {
+                command.execute(&mut state);
+            } else {
+                info!("Engine thread shutting down");
+                break;
+            }
+        }
     }
 }
 
