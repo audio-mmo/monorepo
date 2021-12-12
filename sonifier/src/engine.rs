@@ -29,11 +29,14 @@ pub(crate) struct EngineState {
     pub(crate) decoding_pool: Arc<DecodingPool>,
     pub(crate) music_state: Option<MusicState>,
     command_receiver: chan::Receiver<Command>,
+    /// We use this channel closing as a signal to the background thread to terminate.
+    shutdown_receiver: chan::Receiver<()>,
 }
 
 pub struct Engine {
     context: syz::Context,
     command_sender: chan::Sender<Command>,
+    shutdown_sender: chan::Sender<()>,
     decoding_pool: Arc<DecodingPool>,
 }
 
@@ -77,7 +80,8 @@ fn engine_thread(mut state: EngineState) {
         select! {
             recv(state.command_receiver)-> r => if let Ok(command) = r {
                 command.execute(&mut state);
-            } else {
+            },
+            recv(state.shutdown_receiver) -> _ => {
                 info!("Engine thread shutting down");
                 break;
             }
@@ -93,6 +97,7 @@ impl Engine {
             buffer_source,
         )?);
         let (command_sender, command_receiver) = chan::bounded(COMMAND_QUEUE_LENGTH);
+        let (shutdown_sender, shutdown_receiver) = chan::bounded(0);
         let context = syz::Context::new()?;
         context.orientation().set((0.0, 1.0, 0.0, 0.0, 0.0, 1.0))?;
 
@@ -104,6 +109,7 @@ impl Engine {
                 decoding_pool: bg_pool,
                 music_state: Default::default(),
                 command_receiver,
+                shutdown_receiver,
             })
         });
 
@@ -111,6 +117,7 @@ impl Engine {
             context,
             decoding_pool,
             command_sender,
+            shutdown_sender,
         }))
     }
 
