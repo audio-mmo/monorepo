@@ -43,8 +43,16 @@ pub(crate) struct MusicState {
 }
 
 fn engine_thread(state: EngineState) {
-    for c in state.command_receiver.iter() {
-        c.execute(&state);
+    loop {
+        let command = match state.command_receiver.recv() {
+            Ok(x) => x,
+            Err(_) => {
+                info!("Engine background thread shutting down");
+                return;
+            }
+        };
+
+        command.execute(&state);
     }
 }
 
