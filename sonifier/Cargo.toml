@@ -13,11 +13,11 @@ log = "0.4.14"
 rand = "0.8.4"
 rand_xorshift = "0.3.0"
 rayon = "1.5.1"
-synthizer = { version = "0.4.4", features = ["asset_lru"] }
+synthizer = { version = "0.4", features = ["asset_lru"] }
 
 [features]
 
 [dev-dependencies]
-asset_lru = "0.1.2"
+asset_lru = "0.1"
 env_logger = "0.9.0"
 structopt = "0.3.25"

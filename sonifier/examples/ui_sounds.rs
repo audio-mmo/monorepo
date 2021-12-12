@@ -46,9 +46,5 @@ fn main() -> Result<()> {
             thread_rng().gen_range(-1.0..=1.0),
         )?;
         sleep(Duration::from_millis(1000));
-        break;
     }
-
-    sleep(Duration::from_millis(5000));
-    Ok(())
 }
