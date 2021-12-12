@@ -38,6 +38,11 @@ impl Object {
     pub(crate) fn disconnect_from_object(&self, what: &dyn Connectable) -> Result<()> {
         what.disconnect(&(*self.get_source()).clone().into())
     }
+
+    pub(crate) fn set_position(&self, pos: (f64, f64, f64)) -> Result<()> {
+        self.get_source().position().set(pos)?;
+        Ok(())
+    }
 }
 
 /// Internal trait which encapsulates over everything that may connect to an object.
@@ -57,3 +62,18 @@ impl Bootstrap for Object {
 /// A reference-counted handle to an audio object.
 #[derive(Clone)]
 pub struct ObjectHandle(pub(crate) Arc<Engine>, pub(crate) Arc<Object>);
+
+impl ObjectHandle {
+    pub fn set_position(&self, pos: (f64, f64, f64)) -> Result<()> {
+        self.0.run_callback(
+            |o, p| {
+                o.downcast::<Object>()
+                    .unwrap()
+                    .set_position((p.0, p.1, p.2))
+            },
+            self.1.clone(),
+            (pos.0, pos.1, pos.2, 0.0, 0.0, 0.0),
+        )?;
+        Ok(())
+    }
+}

@@ -1,6 +1,8 @@
 mod shared;
 
 use std::path::Path;
+use std::thread::sleep;
+use std::time::Duration;
 
 use anyhow::Result;
 use structopt::StructOpt;
@@ -33,8 +35,11 @@ fn main() -> Result<()> {
     player.set_looping(true)?;
     player.connect(&object)?;
 
-    println!("Press enter to exit");
-    let mut unused = String::new();
-    std::io::stdin().read_line(&mut unused).unwrap();
-    Ok(())
+    println!("Press ctrl+c to exit");
+    loop {
+        for i in (-10..9).chain((-9..=10).rev()) {
+            object.set_position((i as f64 / 10.0, 1.0, 0.0))?;
+            sleep(Duration::from_millis(100));
+        }
+    }
 }

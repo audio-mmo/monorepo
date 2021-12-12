@@ -61,12 +61,22 @@ impl Engine {
     }
 
     /// Run a callback in the audio thread.
+    #[allow(clippy::type_complexity)]
     pub(crate) fn run_callback(
         &self,
-        callback: fn(Arc<dyn std::any::Any + Send + Sync>) -> Result<()>,
-        arg: Arc<dyn std::any::Any + Send + Sync>,
+
+        callback: fn(
+            Arc<dyn std::any::Any + Send + Sync>,
+            (f64, f64, f64, f64, f64, f64),
+        ) -> Result<()>,
+        arg1: Arc<dyn std::any::Any + Send + Sync>,
+        arg2: (f64, f64, f64, f64, f64, f64),
     ) -> Result<()> {
-        let cp = CommandPayload::RunCallback { callback, arg };
+        let cp = CommandPayload::RunCallback {
+            callback,
+            arg1,
+            arg2,
+        };
         let cmd = Command::new(cp, None);
         self.command_sender.send(cmd)?;
 

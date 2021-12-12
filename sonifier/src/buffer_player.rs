@@ -82,15 +82,17 @@ pub struct BufferPlayerHandle(pub(crate) Arc<Engine>, pub(crate) Arc<BufferPlaye
 impl BufferPlayerHandle {
     pub fn play(&self) -> Result<()> {
         self.0.run_callback(
-            |x| x.downcast::<BufferPlayer>().unwrap().pause(),
+            |x, _| x.downcast::<BufferPlayer>().unwrap().pause(),
             self.1.clone(),
+            Default::default(),
         )
     }
 
     pub fn pause(&self) -> Result<()> {
         self.0.run_callback(
-            |x| x.downcast::<BufferPlayer>().unwrap().play(),
+            |x, _| x.downcast::<BufferPlayer>().unwrap().play(),
             self.1.clone(),
+            Default::default(),
         )
     }
 
@@ -107,13 +109,15 @@ impl BufferPlayerHandle {
     pub fn set_looping(&self, looping: bool) -> Result<()> {
         if looping {
             self.0.run_callback(
-                |x| x.downcast::<BufferPlayer>().unwrap().set_looping(true),
+                |x, _| x.downcast::<BufferPlayer>().unwrap().set_looping(true),
                 self.1.clone(),
+                Default::default(),
             )?;
         } else {
             self.0.run_callback(
-                |x| x.downcast::<BufferPlayer>().unwrap().set_looping(false),
+                |x, _| x.downcast::<BufferPlayer>().unwrap().set_looping(false),
                 self.1.clone(),
+                Default::default(),
             )?;
         }
 

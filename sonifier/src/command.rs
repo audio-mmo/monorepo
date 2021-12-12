@@ -17,8 +17,10 @@ pub(crate) enum CommandPayload {
     /// Run callbacks in the audio thread, avoiding the overhead of boxed closures or the need to infinitely expand this
     /// enum.
     RunCallback {
-        callback: fn(what: Arc<dyn Any + Sync + Send>) -> Result<()>,
-        arg: Arc<dyn Any + Sync + Send>,
+        #[allow(clippy::type_complexity)]
+        callback: fn(Arc<dyn Any + Sync + Send>, (f64, f64, f64, f64, f64, f64)) -> Result<()>,
+        arg1: Arc<dyn Any + Sync + Send>,
+        arg2: (f64, f64, f64, f64, f64, f64),
     },
 }
 
@@ -34,7 +36,11 @@ impl CommandPayload {
             CommandPayload::Bootstrap(x) => x.bootstrap(ctx),
             CommandPayload::Connect(src, dest) => dest.connect_to_object(&*src),
             CommandPayload::Disconnect(src, dest) => dest.disconnect_from_object(&*src),
-            CommandPayload::RunCallback { callback, arg } => callback(arg),
+            CommandPayload::RunCallback {
+                callback,
+                arg1,
+                arg2,
+            } => callback(arg1, arg2),
         }
     }
 }
