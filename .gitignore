@@ -9,3 +9,7 @@
 # from proptest. They say add it to CI, but we don't have enough code stability
 # to bother.
 proptest-regressions
+
+# Until we can get assets that we can redistribute, ignore the assets folder so I can copy random sounds from random
+# places to test with.
+/assets/

@@ -103,4 +103,20 @@ impl BufferPlayerHandle {
         let cmd = CommandPayload::Disconnect(self.1.clone(), obj.1.clone());
         self.0.send_command(cmd)
     }
+
+    pub fn set_looping(&self, looping: bool) -> Result<()> {
+        if looping {
+            self.0.run_callback(
+                |x| x.downcast::<BufferPlayer>().unwrap().set_looping(true),
+                self.1.clone(),
+            )?;
+        } else {
+            self.0.run_callback(
+                |x| x.downcast::<BufferPlayer>().unwrap().set_looping(false),
+                self.1.clone(),
+            )?;
+        }
+
+        Ok(())
+    }
 }

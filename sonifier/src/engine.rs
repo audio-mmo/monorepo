@@ -2,13 +2,15 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use crossbeam::channel as chan;
+use log::*;
 use synthizer as syz;
 
 use crate::bootstrap::Bootstrap;
 use crate::buffer::BufferHandle;
 use crate::buffer_player::{BufferPlayer, BufferPlayerHandle};
 use crate::command::{Command, CommandPayload};
-use crate::decoding_pool::{BufferSource, DecodingPool};
+use crate::decoding_pool::DecodingPool;
+use crate::io_provider::IoProvider;
 use crate::object::{Object, ObjectHandle};
 
 /// Concurrency for the decoding pool.  Not currently exposed as a config value to users because we can effectively
@@ -35,7 +37,7 @@ fn engine_thread(context: syz::Context, cmd_receiver: chan::Receiver<Command>) {
 }
 
 impl Engine {
-    pub fn new(buffer_source: Box<dyn BufferSource>) -> Result<Arc<Engine>> {
+    pub fn new(buffer_source: Box<dyn IoProvider>) -> Result<Arc<Engine>> {
         let decoding_pool =
             DecodingPool::new(DECODING_CONCURRENCY, DECODING_QUEUE_LENGTH, buffer_source)?;
         let (command_sender, command_receiver) = chan::bounded(COMMAND_QUEUE_LENGTH);
@@ -79,6 +81,7 @@ impl Engine {
 
     /// Enqueue decoding for and return a handle to a buffer.
     pub fn new_buffer(self: &Arc<Self>, key: String) -> Result<BufferHandle> {
+        debug!("Creation request for buffer using asset {}", key);
         Ok(BufferHandle(
             self.clone(),
             Arc::new(self.decoding_pool.decode(key.into())?),

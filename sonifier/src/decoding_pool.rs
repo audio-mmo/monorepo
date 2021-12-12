@@ -1,17 +1,15 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::Result;
 use crossbeam::channel as chan;
+use log::*;
 use rayon::prelude::*;
 use synthizer as syz;
 
 use crate::buffer::Buffer;
-
-/// A trait abstracting over getting from a string key to a synthizer buffer.
-pub trait BufferSource: Send + Sync {
-    fn decode_key(&self, key: &str) -> Result<Arc<syz::Buffer>>;
-}
+use crate::io_provider::IoProvider;
 
 /// A pool of threads which decodes buffers upon request.
 pub(crate) struct DecodingPool {
@@ -41,8 +39,10 @@ impl Drop for DecodingPool {
 fn decoding_thread(
     commands: chan::Receiver<DecodingCommand>,
     stop_flag: Arc<AtomicBool>,
-    source: Box<dyn BufferSource>,
+    source: Box<dyn IoProvider>,
 ) {
+    info!("Audio decoding threads started");
+
     commands.iter().par_bridge()
         // First, work out what happens.
     .for_each(|command| {
@@ -52,7 +52,12 @@ fn decoding_thread(
                 "Decoding for key {} failed because the thread pool was stopped while this request was still outstanding",
                 command.key);
             }
-            let buffer = source.decode_key(&command.key)?;
+
+            debug!("Decoding asset {}", command.key);
+            let start = Instant::now();
+            let buffer = source.decode_buffer(&command.key)?;
+            let end = Instant::now();
+            debug!("Decoded {} in {} seconds", command.key, (end-start).as_secs_f64());
             Ok(buffer)
         };
 
@@ -64,7 +69,7 @@ impl DecodingPool {
     pub(crate) fn new(
         concurrency: usize,
         channel_len: usize,
-        source: Box<dyn BufferSource>,
+        source: Box<dyn IoProvider>,
     ) -> Result<DecodingPool> {
         let has_dropped = Arc::new(AtomicBool::new(false));
         let pool = rayon::ThreadPoolBuilder::new()
@@ -73,7 +78,7 @@ impl DecodingPool {
             .build()?;
         let (command_sender, command_receiver) = chan::bounded(channel_len);
         let cloned_flag = has_dropped.clone();
-        pool.install(move || {
+        pool.spawn(move || {
             decoding_thread(command_receiver, cloned_flag, source);
         });
 
