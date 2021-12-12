@@ -17,6 +17,7 @@ pub(crate) struct DecodingPool {
     pool: rayon::ThreadPool,
     /// When this pool is dropped, we set this flag to true.
     has_dropped: Arc<AtomicBool>,
+    io_provider: Arc<Box<dyn IoProvider>>,
 }
 
 struct DecodingCommand {
@@ -39,7 +40,7 @@ impl Drop for DecodingPool {
 fn decoding_thread(
     commands: chan::Receiver<DecodingCommand>,
     stop_flag: Arc<AtomicBool>,
-    source: Box<dyn IoProvider>,
+    source: Arc<Box<dyn IoProvider>>,
 ) {
     info!("Audio decoding threads started");
 
@@ -71,21 +72,24 @@ impl DecodingPool {
         channel_len: usize,
         source: Box<dyn IoProvider>,
     ) -> Result<DecodingPool> {
+        let source_arc = Arc::new(source);
         let has_dropped = Arc::new(AtomicBool::new(false));
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(concurrency)
             .thread_name(|n| format!("Decoding thread {}", n))
             .build()?;
         let (command_sender, command_receiver) = chan::bounded(channel_len);
+        let bg_source = source_arc.clone();
         let cloned_flag = has_dropped.clone();
         pool.spawn(move || {
-            decoding_thread(command_receiver, cloned_flag, source);
+            decoding_thread(command_receiver, cloned_flag, bg_source);
         });
 
         Ok(DecodingPool {
             command_sender,
             has_dropped,
             pool,
+            io_provider: source_arc,
         })
     }
 
@@ -98,5 +102,12 @@ impl DecodingPool {
 
         self.command_sender.send(command)?;
         Ok(Buffer::new_decoding(receiver))
+    }
+
+    /// Get a stream handle.
+    ///
+    /// Does work inline in the calling thread.
+    pub fn get_stream_handle(&self, key: &str) -> Result<syz::StreamHandle> {
+        self.io_provider.get_stream_handle(key)
     }
 }

@@ -1,3 +1,4 @@
+//! Set up a buffer and some music.
 mod shared;
 
 use std::path::Path;
@@ -14,8 +15,10 @@ use shared::*;
 struct Params {
     #[structopt(long = "--base-path")]
     base_path: String,
-    #[structopt(long = "-asset")]
+    #[structopt(long = "--asset")]
     asset: String,
+    #[structopt(long = "--music")]
+    music: String,
 }
 
 fn main() -> Result<()> {
@@ -34,6 +37,7 @@ fn main() -> Result<()> {
     let player = engine.new_buffer_player(&buffer)?;
     player.set_looping(true)?;
     player.connect(&object)?;
+    engine.set_music(&params.music)?;
 
     println!("Press ctrl+c to exit");
     loop {

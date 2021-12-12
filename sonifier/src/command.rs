@@ -7,6 +7,7 @@ use log::*;
 use synthizer as syz;
 
 use crate::bootstrap::Bootstrap;
+use crate::engine::Engine;
 use crate::object::{Connectable, Object};
 
 /// Commands that may be sent to the engine's processing thread.
@@ -22,6 +23,8 @@ pub(crate) enum CommandPayload {
         arg1: Arc<dyn Any + Sync + Send>,
         arg2: (f64, f64, f64, f64, f64, f64),
     },
+    SetMusic(Arc<Engine>, String),
+    ClearMusic(Arc<Engine>),
 }
 
 pub(crate) struct Command {
@@ -41,6 +44,8 @@ impl CommandPayload {
                 arg1,
                 arg2,
             } => callback(arg1, arg2),
+            CommandPayload::SetMusic(eng, key) => eng.set_music_bg(&key),
+            CommandPayload::ClearMusic(eng) => eng.clear_music_bg(),
         }
     }
 }

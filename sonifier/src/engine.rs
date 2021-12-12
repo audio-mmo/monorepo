@@ -28,11 +28,32 @@ pub struct Engine {
     context: syz::Context,
     decoding_pool: DecodingPool,
     command_sender: chan::Sender<Command>,
+    music_state: atomic_refcell::AtomicRefCell<Option<MusicState>>,
+}
+
+pub(crate) struct MusicState {
+    generator: syz::StreamingGenerator,
+    source: syz::DirectSource,
 }
 
 fn engine_thread(context: syz::Context, cmd_receiver: chan::Receiver<Command>) {
     for c in cmd_receiver.iter() {
         c.execute(&context);
+    }
+}
+
+impl MusicState {
+    pub(crate) fn new(ctx: &syz::Context, stream: syz::StreamHandle) -> Result<MusicState> {
+        let generator = syz::StreamingGenerator::from_stream_handle(ctx, stream)?;
+        let source = syz::DirectSource::new(ctx)?;
+        let linger_cfg = syz::DeleteBehaviorConfigBuilder::new()
+            .linger(true)
+            .linger_timeout(0.3)
+            .build();
+        generator.config_delete_behavior(&linger_cfg)?;
+        source.config_delete_behavior(&linger_cfg)?;
+        source.add_generator(&generator)?;
+        Ok(MusicState { generator, source })
     }
 }
 
@@ -51,6 +72,7 @@ impl Engine {
             context,
             decoding_pool,
             command_sender,
+            music_state: Default::default(),
         }))
     }
 
@@ -127,5 +149,32 @@ impl Engine {
             .orientation()
             .set((at.0, at.1, at.2, up.0, up.1, up.2))?;
         Ok(())
+    }
+
+    /// Always called from the background thread.  Configure music.
+    pub(crate) fn set_music_bg(self: &Arc<Engine>, key: &str) -> Result<()> {
+        let sh = self.decoding_pool.get_stream_handle(key)?;
+        let ms = MusicState::new(&self.context, sh)?;
+        *self.music_state.borrow_mut() = Some(ms);
+        Ok(())
+    }
+
+    pub(crate) fn clear_music_bg(&self) -> Result<()> {
+        *self.music_state.borrow_mut() = None;
+        Ok(())
+    }
+
+    /// Start a music track playing.
+    ///
+    /// Music can be stopped with `clear_music`.
+    pub fn set_music(self: &Arc<Engine>, key: &str) -> Result<()> {
+        let payload = CommandPayload::SetMusic(self.clone(), key.to_string());
+        self.send_command(payload)
+    }
+
+    /// Clear/stop music.
+    pub fn clear_music(self: &Arc<Self>) -> Result<()> {
+        let payload = CommandPayload::ClearMusic(self.clone());
+        self.send_command(payload)
     }
 }
