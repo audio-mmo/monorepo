@@ -160,7 +160,7 @@ mod tests {
             .unwrap();
         let schema = schema_builder.build().unwrap();
 
-        proptest!(ProptestConfig::with_cases(10000), |(x: TestStruct) | {
+        proptest!(|(x: TestStruct) | {
             let rv = RowValue::new(&schema, &x).unwrap();
             let nv: TestStruct = rv.deserialize().unwrap();
             prop_assert_eq!(x, nv);
