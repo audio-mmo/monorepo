@@ -20,7 +20,7 @@ pub enum ColumnType {
 
 /// A column in a table.
 #[derive(Debug)]
-pub struct Column {
+pub struct ColumnDescriptor {
     name: String,
     column_type: ColumnType,
     primary_key: bool,
@@ -28,12 +28,12 @@ pub struct Column {
 
 /// Description of a table.
 #[derive(Debug)]
-pub struct Table {
+pub struct TableDescriptor {
     name: String,
-    columns: Vec<Column>,
+    columns: Vec<ColumnDescriptor>,
 }
 
-impl Column {
+impl ColumnDescriptor {
     pub fn new(name: String, column_type: ColumnType, primary_key: bool) -> Self {
         Self {
             name,
@@ -55,8 +55,8 @@ impl Column {
     }
 }
 
-impl Table {
-    fn new(name: String, columns: Vec<Column>) -> Self {
+impl TableDescriptor {
+    fn new(name: String, columns: Vec<ColumnDescriptor>) -> Self {
         Self { name, columns }
     }
 }
@@ -64,7 +64,7 @@ impl Table {
 /// A helper to build tables.
 pub struct TableBuilder {
     name: String,
-    columns: Vec<Column>,
+    columns: Vec<ColumnDescriptor>,
 }
 
 impl TableBuilder {
@@ -85,25 +85,28 @@ impl TableBuilder {
     pub fn add_json_column(&mut self, name: String) -> Result<()> {
         self.check_name(&name)?;
         self.columns
-            .push(Column::new(name, ColumnType::Json, false));
+            .push(ColumnDescriptor::new(name, ColumnType::Json, false));
         Ok(())
     }
 
     pub fn add_integer_column(&mut self, name: String, primary_key: bool) -> Result<()> {
         self.check_name(&name)?;
-        self.columns
-            .push(Column::new(name, ColumnType::Integer, primary_key));
+        self.columns.push(ColumnDescriptor::new(
+            name,
+            ColumnType::Integer,
+            primary_key,
+        ));
         Ok(())
     }
 
     pub fn add_string_column(&mut self, name: String, primary_key: bool) -> Result<()> {
         self.check_name(&name)?;
         self.columns
-            .push(Column::new(name, ColumnType::String, primary_key));
+            .push(ColumnDescriptor::new(name, ColumnType::String, primary_key));
         Ok(())
     }
 
-    pub fn build(self) -> Result<Table> {
-        Ok(Table::new(self.name, self.columns))
+    pub fn build(self) -> Result<TableDescriptor> {
+        Ok(TableDescriptor::new(self.name, self.columns))
     }
 }

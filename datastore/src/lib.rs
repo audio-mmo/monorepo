@@ -14,8 +14,6 @@
 //! either this or `$`, but `$` is confusing because of sql parameters). Migrations are tera templates, which contain a
 //! variable for each table in the tablespace, e.g. `{{ my_table }}` instead of just `my_table`.
 mod database;
-mod row;
-mod table;
-mod tablespace;
+mod descriptor;
 
-pub use row::*;
+pub use descriptor::*;
