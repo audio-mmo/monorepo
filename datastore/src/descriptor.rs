@@ -44,9 +44,15 @@ pub struct TableDescriptor {
 
 /// A schema, which holds a collection of tables.
 #[derive(Debug)]
-struct SchemaDescriptor {
+pub struct SchemaDescriptor {
     name: String,
     tables: HashMap<String, TableDescriptor>,
+}
+
+#[derive(Debug)]
+pub struct DatabaseDescriptor {
+    path: std::path::PathBuf,
+    schemas: HashMap<String, SchemaDescriptor>,
 }
 
 lazy_static::lazy_static! {
@@ -142,6 +148,28 @@ impl SchemaDescriptor {
 
         Ok(SchemaDescriptor { name, tables })
     }
+
+    pub fn iter_tables(&self) -> impl Iterator<Item = &TableDescriptor> {
+        self.tables.values()
+    }
+
+    pub fn get_name(&self) -> &str {
+        self.name.as_str()
+    }
+}
+
+impl DatabaseDescriptor {
+    fn new(path: std::path::PathBuf, schemas: HashMap<String, SchemaDescriptor>) -> Result<Self> {
+        Ok(DatabaseDescriptor { path, schemas })
+    }
+
+    pub fn iter_schemas(&self) -> impl Iterator<Item = &SchemaDescriptor> {
+        self.schemas.values()
+    }
+
+    pub fn get_path(&self) -> &std::path::Path {
+        self.path.as_path()
+    }
 }
 
 /// A builder for tables.
@@ -230,7 +258,7 @@ impl TableDescriptorBuilder {
 
 /// Builder for schemas.
 #[derive(Debug)]
-struct SchemaDescriptorBuilder {
+pub struct SchemaDescriptorBuilder {
     name: String,
     tables: HashMap<String, TableDescriptor>,
 }
@@ -245,7 +273,7 @@ impl SchemaDescriptorBuilder {
 
     /// Add a table.  Takes a closure which will be passed a reference to a builder, which we build for you once the
     /// closure returns.
-    fn add_table<F>(&mut self, name: String, table_builder: F) -> Result<()>
+    pub fn add_table<F>(&mut self, name: String, table_builder: F) -> Result<()>
     where
         F: for<'a> FnOnce(&'a mut TableDescriptorBuilder) -> Result<()>,
     {
@@ -261,8 +289,50 @@ impl SchemaDescriptorBuilder {
         Ok(())
     }
 
-    pub fn vbuild(self) -> Result<SchemaDescriptor> {
+    pub fn build(self) -> Result<SchemaDescriptor> {
         SchemaDescriptor::new(self.name, self.tables)
+    }
+}
+
+/// Builder for databases.
+#[derive(Debug)]
+pub struct DatabaseDescriptorBuilder {
+    path: std::path::PathBuf,
+    schemas: HashMap<String, SchemaDescriptor>,
+}
+
+impl DatabaseDescriptorBuilder {
+    pub fn new(path: std::path::PathBuf) -> Self {
+        DatabaseDescriptorBuilder {
+            path,
+            schemas: Default::default(),
+        }
+    }
+
+    /// Add a schema.  Takes a closure which will be passed a reference to a builder, which we build for you once the
+    /// closure returns.
+    pub fn add_schema<F>(&mut self, name: String, schema_builder: F) -> Result<()>
+    where
+        F: for<'a> FnOnce(&'a mut SchemaDescriptorBuilder) -> Result<()>,
+    {
+        if self.schemas.contains_key(&name) {
+            anyhow::bail!(
+                "Database {}: Duplicate schema name {}",
+                self.path.display(),
+                name
+            );
+        }
+
+        let mut builder = SchemaDescriptorBuilder::new(name.clone());
+        schema_builder(&mut builder)?;
+        let schema = builder.build()?;
+        self.schemas.insert(name, schema);
+
+        Ok(())
+    }
+
+    pub fn build(self) -> Result<DatabaseDescriptor> {
+        DatabaseDescriptor::new(self.path, self.schemas)
     }
 }
 
