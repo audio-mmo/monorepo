@@ -1,7 +1,7 @@
 //! Rows.
 //!
-//! A row consists of some number of columns, each of which may have one of 3 types: a 64-bit signed integer, a string,
-//! or a value which should be serialized to JSON.
+//! A row consists of some number of columns, each of which may have one of the following types: a 64-bit signed
+//! integer, an f64, a string, or a value which should be serialized to JSON.
 //!
 //! A table's primary key consists of zero or more columns which are marked as primary keys.  JSON columns may not be
 //! primary keys.
@@ -16,6 +16,8 @@ pub enum ColumnType {
     String,
     /// This column is a JSON blob.
     Json,
+    /// This column is an f64.
+    F64,
 }
 
 /// A column in a table.
@@ -61,6 +63,11 @@ impl ColumnDescriptor {
 
         if nullable && column_type == ColumnType::Json {
             anyhow::bail!("JSON columns may not be NULL");
+        }
+
+        // Nothing good can ever come from primary key floats.
+        if primary_key && column_type == ColumnType::F64 {
+            anyhow::bail!("Floats may not be primary keys");
         }
 
         Ok(Self {
@@ -187,6 +194,7 @@ mod tests {
             ("no_pk_json", Json, true, false, false),
             ("no_null_pk", Integer, true, true, false),
             ("numbers_at_end_work1", Integer, false, false, true),
+            ("no_float_pk", F64, true, false, false),
         ] {
             assert!(
                 ColumnDescriptor::new(name.to_string(), ctype, primary_key, is_nullable).is_ok()

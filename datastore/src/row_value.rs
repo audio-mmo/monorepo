@@ -12,6 +12,7 @@ enum ColumnValue {
     String(String),
     Integer(i64),
     Json(serde_json::Value),
+    F64(f64),
 }
 
 /// We anticipate that we will be building and destroying tons and tons of rows, so instead of using a hashmap etc. we
@@ -64,6 +65,10 @@ impl RowValue {
                             .to_string(),
                     ),
                     ColumnType::Json => ColumnValue::Json(v.take()),
+                    ColumnType::F64 => ColumnValue::F64(
+                        v.as_f64()
+                            .ok_or_else(|| anyhow::anyhow!("{}: isn't an f64", i.get_name()))?,
+                    ),
                 }
             };
 
