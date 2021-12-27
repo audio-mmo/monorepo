@@ -35,13 +35,26 @@ pub struct TableDescriptor {
 }
 
 impl ColumnDescriptor {
-    pub fn new(name: String, column_type: ColumnType, primary_key: bool, nullable: bool) -> Self {
-        Self {
+    pub fn new(
+        name: String,
+        column_type: ColumnType,
+        primary_key: bool,
+        nullable: bool,
+    ) -> Result<Self> {
+        if name.is_empty() {
+            anyhow::bail!("Column names may not be empty");
+        }
+
+        if primary_key && nullable {
+            anyhow::bail!("Primay key columns may not be nullable");
+        }
+
+        Ok(Self {
             name,
             column_type,
             primary_key,
             nullable,
-        }
+        })
     }
 
     pub fn get_name(&self) -> &str {
@@ -101,7 +114,7 @@ impl TableBuilder {
         // JSON isn't deterministic enough to be a primary key.  It's also never null, since we can just store JSON null
         // in the column.
         self.columns
-            .push(ColumnDescriptor::new(name, ColumnType::Json, false, false));
+            .push(ColumnDescriptor::new(name, ColumnType::Json, false, false)?);
         Ok(())
     }
 
@@ -117,7 +130,7 @@ impl TableBuilder {
             ColumnType::Integer,
             primary_key,
             nullable,
-        ));
+        )?);
         Ok(())
     }
 
@@ -133,7 +146,7 @@ impl TableBuilder {
             ColumnType::String,
             primary_key,
             nullable,
-        ));
+        )?);
         Ok(())
     }
 
