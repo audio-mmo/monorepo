@@ -56,7 +56,7 @@ impl RowValue {
                 ColumnValue::Null
             } else {
                 match i.get_column_type() {
-                    ColumnType::Integer => ColumnValue::Integer(v.as_i64().ok_or_else(|| {
+                    ColumnType::I64 => ColumnValue::Integer(v.as_i64().ok_or_else(|| {
                         anyhow::anyhow!("{}: integer isn't representable as i64", i.get_name())
                     })?),
                     ColumnType::String => ColumnValue::String(

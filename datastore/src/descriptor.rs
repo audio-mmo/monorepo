@@ -1,17 +1,21 @@
-//! Rows.
+//! Database descriptors.
 //!
 //! A row consists of some number of columns, each of which may have one of the following types: a 64-bit signed
 //! integer, an f64, a string, or a value which should be serialized to JSON.
 //!
 //! A table's primary key consists of zero or more columns which are marked as primary keys.  JSON columns may not be
 //! primary keys.
+//!
+//! All tables are grouped into a schema, which is something like Postgres's support for `schemaname.tablename`, but
+//! emulated on top of sqlite.  This is what allows for multiple "things" (library, etc) to share the same sqlite file;
+//! in particular, the ammo ecs and any downstream dependencies.
 use anyhow::Result;
 
 /// Types of a row's columns.
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd, Hash)]
 pub enum ColumnType {
     /// This column is a 64-bit signed integer.
-    Integer,
+    I64,
     /// This column is a string.
     String,
     /// This column is a JSON blob.
@@ -148,7 +152,7 @@ impl TableDescriptorBuilder {
         self.check_name(&name)?;
         self.columns.push(ColumnDescriptor::new(
             name,
-            ColumnType::Integer,
+            ColumnType::I64,
             primary_key,
             nullable,
         )?);
@@ -202,14 +206,14 @@ mod tests {
         use ColumnType::*;
 
         for (name, ctype, primary_key, is_nullable, is_good) in [
-            ("test", Integer, true, false, true),
+            ("test", I64, true, false, true),
             ("1test", String, false, false, false),
             ("a b", String, false, false, false),
             ("good_json", Json, false, false, true),
             ("no_null_json", Json, false, true, false),
             ("no_pk_json", Json, true, false, false),
-            ("no_null_pk", Integer, true, true, false),
-            ("numbers_at_end_work1", Integer, false, false, true),
+            ("no_null_pk", I64, true, true, false),
+            ("numbers_at_end_work1", I64, false, false, true),
             ("no_float_pk", F64, true, false, false),
         ] {
             assert!(
