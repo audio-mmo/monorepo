@@ -49,7 +49,7 @@ impl RowValue {
                 )
             })?;
 
-            let cval = if v.is_null() {
+            let cval = if v.is_null() && i.get_column_type() != &ColumnType::Json {
                 if !i.is_nullable() {
                     anyhow::bail!("{}: got null value but column isn't nullable", i.get_name());
                 }
@@ -79,5 +79,91 @@ impl RowValue {
         }
 
         Ok(RowValue { map })
+    }
+
+    /// Build a value from this row.
+    pub fn deserialize<T: serde::de::DeserializeOwned>(self) -> Result<T> {
+        // We build a JSON value, then deserialize from that.  As with building row values, we can later opt to
+        // implement deserializer directly if we need to.
+        let mut jval = serde_json::json!({});
+
+        let map = jval
+            .as_object_mut()
+            .expect("Should always succeed because we just built this value");
+
+        for i in self.map.entries.into_iter() {
+            use ColumnValue::*;
+
+            let cval = match i.value {
+                Null => serde_json::json!(null),
+                F64(x) => serde_json::json!(x),
+                Integer(x) => serde_json::json!(x),
+                String(x) => serde_json::json!(x),
+                Json(x) => x,
+            };
+            map.insert(i.name, cval);
+        }
+
+        Ok(serde_json::from_value(jval)?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+
+    #[derive(
+        serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, proptest_derive::Arbitrary,
+    )]
+    struct TestStruct {
+        pk: i64,
+        name: String,
+        float: f64,
+        nullable_float: Option<f64>,
+        nullable_string: Option<String>,
+        json_map: HashMap<String, String>,
+        possibly_null_json_map: Option<HashMap<String, String>>,
+        jsonified_string: String,
+    }
+
+    /// We will build a reasonably complicated struct and a schema for that struct, then make sure that going through a
+    /// row value and back produces the same value.
+    #[test]
+    fn identity() {
+        use proptest::prelude::*;
+
+        let mut schema_builder = crate::TableDescriptorBuilder::new("table".into());
+
+        schema_builder
+            .add_integer_column("pk".into(), true, false)
+            .unwrap();
+        schema_builder
+            .add_string_column("name".into(), false, false)
+            .unwrap();
+        schema_builder
+            .add_f64_column("float".into(), false, false)
+            .unwrap();
+        schema_builder
+            .add_f64_column("nullable_float".into(), false, true)
+            .unwrap();
+        schema_builder
+            .add_string_column("nullable_string".into(), false, true)
+            .unwrap();
+        schema_builder.add_json_column("json_map".into()).unwrap();
+        schema_builder
+            .add_json_column("possibly_null_json_map".into())
+            .unwrap();
+        schema_builder
+            .add_json_column("jsonified_string".into())
+            .unwrap();
+        let schema = schema_builder.build().unwrap();
+
+        proptest!(ProptestConfig::with_cases(10000), |(x: TestStruct) | {
+            let rv = RowValue::new(&schema, &x).unwrap();
+            let nv: TestStruct = rv.deserialize().unwrap();
+            prop_assert_eq!(x, nv);
+        });
     }
 }

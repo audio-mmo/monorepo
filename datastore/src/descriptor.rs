@@ -110,12 +110,12 @@ impl TableDescriptor {
 }
 
 /// A helper to build tables.
-pub struct TableBuilder {
+pub struct TableDescriptorBuilder {
     name: String,
     columns: Vec<ColumnDescriptor>,
 }
 
-impl TableBuilder {
+impl TableDescriptorBuilder {
     pub fn new(name: String) -> Self {
         Self {
             name,
@@ -165,6 +165,22 @@ impl TableBuilder {
         self.columns.push(ColumnDescriptor::new(
             name,
             ColumnType::String,
+            primary_key,
+            nullable,
+        )?);
+        Ok(())
+    }
+
+    pub fn add_f64_column(
+        &mut self,
+        name: String,
+        primary_key: bool,
+        nullable: bool,
+    ) -> Result<()> {
+        self.check_name(&name)?;
+        self.columns.push(ColumnDescriptor::new(
+            name,
+            ColumnType::F64,
             primary_key,
             nullable,
         )?);
