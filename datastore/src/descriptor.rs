@@ -24,6 +24,7 @@ pub struct ColumnDescriptor {
     name: String,
     column_type: ColumnType,
     primary_key: bool,
+    nullable: bool,
 }
 
 /// Description of a table.
@@ -34,11 +35,12 @@ pub struct TableDescriptor {
 }
 
 impl ColumnDescriptor {
-    pub fn new(name: String, column_type: ColumnType, primary_key: bool) -> Self {
+    pub fn new(name: String, column_type: ColumnType, primary_key: bool, nullable: bool) -> Self {
         Self {
             name,
             column_type,
             primary_key,
+            nullable,
         }
     }
 
@@ -53,11 +55,23 @@ impl ColumnDescriptor {
     pub fn is_primary_key(&self) -> bool {
         self.primary_key
     }
+
+    pub fn is_nullable(&self) -> bool {
+        self.nullable
+    }
 }
 
 impl TableDescriptor {
     fn new(name: String, columns: Vec<ColumnDescriptor>) -> Self {
         Self { name, columns }
+    }
+
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn iter_columns(&self) -> impl Iterator<Item = &ColumnDescriptor> {
+        self.columns.iter()
     }
 }
 
@@ -84,25 +98,42 @@ impl TableBuilder {
 
     pub fn add_json_column(&mut self, name: String) -> Result<()> {
         self.check_name(&name)?;
+        // JSON isn't deterministic enough to be a primary key.  It's also never null, since we can just store JSON null
+        // in the column.
         self.columns
-            .push(ColumnDescriptor::new(name, ColumnType::Json, false));
+            .push(ColumnDescriptor::new(name, ColumnType::Json, false, false));
         Ok(())
     }
 
-    pub fn add_integer_column(&mut self, name: String, primary_key: bool) -> Result<()> {
+    pub fn add_integer_column(
+        &mut self,
+        name: String,
+        primary_key: bool,
+        nullable: bool,
+    ) -> Result<()> {
         self.check_name(&name)?;
         self.columns.push(ColumnDescriptor::new(
             name,
             ColumnType::Integer,
             primary_key,
+            nullable,
         ));
         Ok(())
     }
 
-    pub fn add_string_column(&mut self, name: String, primary_key: bool) -> Result<()> {
+    pub fn add_string_column(
+        &mut self,
+        name: String,
+        primary_key: bool,
+        nullable: bool,
+    ) -> Result<()> {
         self.check_name(&name)?;
-        self.columns
-            .push(ColumnDescriptor::new(name, ColumnType::String, primary_key));
+        self.columns.push(ColumnDescriptor::new(
+            name,
+            ColumnType::String,
+            primary_key,
+            nullable,
+        ));
         Ok(())
     }
 

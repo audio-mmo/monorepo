@@ -13,7 +13,10 @@
 //! Tables are named like `tablespace.table` as a quoted sqlite identifier, which allows for tables to use `_` (it is
 //! either this or `$`, but `$` is confusing because of sql parameters). Migrations are tera templates, which contain a
 //! variable for each table in the tablespace, e.g. `{{ my_table }}` instead of just `my_table`.
+#![allow(dead_code)]
 mod database;
 mod descriptor;
+mod row_value;
 
 pub use descriptor::*;
+pub use row_value::*;
