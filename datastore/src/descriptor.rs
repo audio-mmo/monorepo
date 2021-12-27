@@ -9,6 +9,8 @@
 //! All tables are grouped into a schema, which is something like Postgres's support for `schemaname.tablename`, but
 //! emulated on top of sqlite.  This is what allows for multiple "things" (library, etc) to share the same sqlite file;
 //! in particular, the ammo ecs and any downstream dependencies.
+use std::collections::HashMap;
+
 use anyhow::Result;
 
 /// Types of a row's columns.
@@ -33,26 +35,33 @@ pub struct ColumnDescriptor {
     nullable: bool,
 }
 
-/// Description of a table.
+/// Description of a table in a schema.
 #[derive(Debug)]
 pub struct TableDescriptor {
     name: String,
     columns: Vec<ColumnDescriptor>,
 }
 
+/// A schema, which holds a collection of tables.
+#[derive(Debug)]
+struct SchemaDescriptor {
+    name: String,
+    tables: HashMap<String, TableDescriptor>,
+}
+
+lazy_static::lazy_static! {
+    static ref NAME_VALIDATOR: regex::Regex = {
+        regex::Regex::new(r"^[a-zA-Z](\d|_|[a-zA-Z])*$").unwrap()
+    };
+}
+
 impl ColumnDescriptor {
-    pub fn new(
+    fn new(
         name: String,
         column_type: ColumnType,
         primary_key: bool,
         nullable: bool,
     ) -> Result<Self> {
-        lazy_static::lazy_static! {
-            static ref NAME_VALIDATOR: regex::Regex = {
-                regex::Regex::new(r"^[a-zA-Z](\d|_|[a-zA-Z])*$").unwrap()
-            };
-        };
-
         if !NAME_VALIDATOR.is_match(&name) {
             anyhow::bail!("Column name contains invalid characters.");
         }
@@ -100,8 +109,20 @@ impl ColumnDescriptor {
 }
 
 impl TableDescriptor {
-    fn new(name: String, columns: Vec<ColumnDescriptor>) -> Self {
-        Self { name, columns }
+    fn new(name: String, columns: Vec<ColumnDescriptor>) -> Result<Self> {
+        use itertools::Itertools;
+
+        {
+            let mut column_refs: smallvec::SmallVec<[&str; 32]> =
+                columns.iter().map(|x| x.get_name()).collect();
+
+            column_refs.sort_unstable();
+            if column_refs.iter().dedup().count() != column_refs.len() {
+                anyhow::bail!("{}: Duplicate column found", name);
+            }
+        }
+
+        Ok(Self { name, columns })
     }
 
     pub fn get_name(&self) -> &str {
@@ -113,7 +134,18 @@ impl TableDescriptor {
     }
 }
 
-/// A helper to build tables.
+impl SchemaDescriptor {
+    fn new(name: String, tables: HashMap<String, TableDescriptor>) -> Result<Self> {
+        if !NAME_VALIDATOR.is_match(&name) {
+            anyhow::bail!("Invalid schema name {}", name);
+        }
+
+        Ok(SchemaDescriptor { name, tables })
+    }
+}
+
+/// A builder for tables.
+#[derive(Debug)]
 pub struct TableDescriptorBuilder {
     name: String,
     columns: Vec<ColumnDescriptor>,
@@ -192,7 +224,45 @@ impl TableDescriptorBuilder {
     }
 
     pub fn build(self) -> Result<TableDescriptor> {
-        Ok(TableDescriptor::new(self.name, self.columns))
+        TableDescriptor::new(self.name, self.columns)
+    }
+}
+
+/// Builder for schemas.
+#[derive(Debug)]
+struct SchemaDescriptorBuilder {
+    name: String,
+    tables: HashMap<String, TableDescriptor>,
+}
+
+impl SchemaDescriptorBuilder {
+    pub fn new(name: String) -> Self {
+        SchemaDescriptorBuilder {
+            name,
+            tables: Default::default(),
+        }
+    }
+
+    /// Add a table.  Takes a closure which will be passed a reference to a builder, which we build for you once the
+    /// closure returns.
+    fn add_table<F>(&mut self, name: String, table_builder: F) -> Result<()>
+    where
+        F: for<'a> FnOnce(&'a mut TableDescriptorBuilder) -> Result<()>,
+    {
+        if self.tables.contains_key(&name) {
+            anyhow::bail!("Schema {}: Duplicate table name {}", self.name, name);
+        }
+
+        let mut builder = TableDescriptorBuilder::new(name.clone());
+        table_builder(&mut builder)?;
+        let table = builder.build()?;
+        self.tables.insert(name, table);
+
+        Ok(())
+    }
+
+    pub fn vbuild(self) -> Result<SchemaDescriptor> {
+        SchemaDescriptor::new(self.name, self.tables)
     }
 }
 
