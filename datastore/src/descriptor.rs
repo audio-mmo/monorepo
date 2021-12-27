@@ -8,7 +8,7 @@
 use anyhow::Result;
 
 /// Types of a row's columns.
-#[derive(Debug)]
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd, Hash)]
 pub enum ColumnType {
     /// This column is a 64-bit signed integer.
     Integer,
@@ -41,12 +41,26 @@ impl ColumnDescriptor {
         primary_key: bool,
         nullable: bool,
     ) -> Result<Self> {
-        if name.is_empty() {
-            anyhow::bail!("Column names may not be empty");
+        lazy_static::lazy_static! {
+            static ref NAME_VALIDATOR: regex::Regex = {
+                regex::Regex::new(r"^[a-zA-Z](\d|_|[a-zA-Z])*$").unwrap()
+            };
+        };
+
+        if !NAME_VALIDATOR.is_match(&name) {
+            anyhow::bail!("Column name contains invalid characters.");
         }
 
         if primary_key && nullable {
             anyhow::bail!("Primay key columns may not be nullable");
+        }
+
+        if primary_key && column_type == ColumnType::Json {
+            anyhow::bail!("JSON columns may not be primary keys");
+        }
+
+        if nullable && column_type == ColumnType::Json {
+            anyhow::bail!("JSON columns may not be NULL");
         }
 
         Ok(Self {
@@ -152,5 +166,34 @@ impl TableBuilder {
 
     pub fn build(self) -> Result<TableDescriptor> {
         Ok(TableDescriptor::new(self.name, self.columns))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Check that the column validation only allows valid things through.
+    #[test]
+    fn column_validation() {
+        use ColumnType::*;
+
+        for (name, ctype, primary_key, is_nullable, is_good) in [
+            ("test", Integer, true, false, true),
+            ("1test", String, false, false, false),
+            ("a b", String, false, false, false),
+            ("good_json", Json, false, false, true),
+            ("no_null_json", Json, false, true, false),
+            ("no_pk_json", Json, true, false, false),
+            ("no_null_pk", Integer, true, true, false),
+            ("numbers_at_end_work1", Integer, false, false, true),
+        ] {
+            assert!(
+                ColumnDescriptor::new(name.to_string(), ctype, primary_key, is_nullable).is_ok()
+                    == is_good,
+                "{}",
+                name
+            );
+        }
     }
 }
