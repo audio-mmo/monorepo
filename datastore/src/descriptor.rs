@@ -42,11 +42,22 @@ pub struct TableDescriptor {
     columns: Vec<ColumnDescriptor>,
 }
 
+/// Descriptor for a migration.
+///
+/// For now, we require that migrations are sql, and don't allow dynamic migration names.  migrations run on specific
+/// schemas and get to use tera, so any dynamicity that is necessary should come from that.
+#[derive(Debug)]
+struct MigrationDescriptor {
+    name: &'static str,
+    sql: &'static str,
+}
+
 /// A schema, which holds a collection of tables.
 #[derive(Debug)]
 pub struct SchemaDescriptor {
     name: String,
     tables: HashMap<String, TableDescriptor>,
+    migrations: Vec<MigrationDescriptor>,
 }
 
 #[derive(Debug)]
@@ -141,12 +152,20 @@ impl TableDescriptor {
 }
 
 impl SchemaDescriptor {
-    fn new(name: String, tables: HashMap<String, TableDescriptor>) -> Result<Self> {
+    fn new(
+        name: String,
+        tables: HashMap<String, TableDescriptor>,
+        migrations: Vec<MigrationDescriptor>,
+    ) -> Result<Self> {
         if !NAME_VALIDATOR.is_match(&name) {
             anyhow::bail!("Invalid schema name {}", name);
         }
 
-        Ok(SchemaDescriptor { name, tables })
+        Ok(SchemaDescriptor {
+            name,
+            tables,
+            migrations,
+        })
     }
 
     pub fn iter_tables(&self) -> impl Iterator<Item = &TableDescriptor> {
@@ -261,6 +280,7 @@ impl TableDescriptorBuilder {
 pub struct SchemaDescriptorBuilder {
     name: String,
     tables: HashMap<String, TableDescriptor>,
+    migrations: Vec<MigrationDescriptor>,
 }
 
 impl SchemaDescriptorBuilder {
@@ -268,6 +288,7 @@ impl SchemaDescriptorBuilder {
         SchemaDescriptorBuilder {
             name,
             tables: Default::default(),
+            migrations: vec![],
         }
     }
 
@@ -289,8 +310,21 @@ impl SchemaDescriptorBuilder {
         Ok(())
     }
 
+    /// Add a migration.
+    ///
+    /// Migrations will be run on this schema in the order they are added to the builder, but do not run in any
+    /// particular order with respect to other schemas.
+    pub fn add_sql_migration(&mut self, name: &'static str, sql: &'static str) -> Result<()> {
+        if name.is_empty() {
+            anyhow::bail!("Migration names must be non-empty")
+        };
+        // We allow empty sql.  Such a migration can run, and is useful if we ever have to yank data.
+        self.migrations.push(MigrationDescriptor { name, sql });
+        Ok(())
+    }
+
     pub fn build(self) -> Result<SchemaDescriptor> {
-        SchemaDescriptor::new(self.name, self.tables)
+        SchemaDescriptor::new(self.name, self.tables, self.migrations)
     }
 }
 
