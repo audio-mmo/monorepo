@@ -200,7 +200,8 @@ impl Database {
     pub fn open(descriptor: DatabaseDescriptor) -> Result<Self> {
         use itertools::Itertools;
 
-        info!("Opening database at {}", descriptor.get_path().display());
+        let path = descriptor.get_path().join("database.sqlite");
+        info!("Opening database at {}", path.display());
         info!(
             "{} has the following tables: {}",
             descriptor.get_path().display(),
@@ -208,7 +209,7 @@ impl Database {
                 .map(|x| build_table_ident(x.0, x.1.get_name()))
                 .join(", ")
         );
-        let conn = rusqlite::Connection::open(descriptor.get_path())?;
+        let conn = rusqlite::Connection::open(&path)?;
         Database::with_connection(conn, descriptor)
     }
 
@@ -374,9 +375,7 @@ mod tests {
     #[test]
     fn opens() {
         let tdir = tempfile::TempDir::new().unwrap();
-        let mut path = tdir.path().to_path_buf();
-        path.push("database.db");
-        let desc = build_test_descriptor(&path).unwrap();
+        let desc = build_test_descriptor(tdir.path()).unwrap();
         Database::open(desc).expect("Database should open");
     }
 
@@ -384,11 +383,9 @@ mod tests {
     #[test]
     fn opens_twice() {
         let tdir = tempfile::TempDir::new().unwrap();
-        let mut path = tdir.path().to_path_buf();
-        path.push("database.db");
-        let desc = build_test_descriptor(&path).unwrap();
+        let desc = build_test_descriptor(tdir.path()).unwrap();
         Database::open(desc).expect("Database should open");
-        let desc = build_test_descriptor(&path).unwrap();
+        let desc = build_test_descriptor(tdir.path()).unwrap();
         Database::open(desc).expect("Database should open");
     }
 }
