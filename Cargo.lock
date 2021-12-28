@@ -52,6 +52,7 @@ name = "ammo_datastore"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "criterion",
  "itertools",
  "lazy_static",
  "log",

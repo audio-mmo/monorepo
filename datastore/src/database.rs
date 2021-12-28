@@ -256,7 +256,7 @@ impl Database {
     /// - If the table has a primary key, insert or replace.
     ///
     /// This is designed to allow for partial rewrites of large tables with primary keys.
-    fn patch_table<T: serde::Serialize>(
+    pub fn patch_table<T: serde::Serialize>(
         &mut self,
         schema: &str,
         table: &str,
@@ -394,7 +394,7 @@ mod tests {
     }
 
     /// Test all the I/O pieces.  It's easiest to just do this all at once, rather than to try to write separate tests.
-    /// 
+    ///
     /// Other ammo crates will eventually offer additional coverage indirectly.
     #[test]
     fn test_table_manipulation() {

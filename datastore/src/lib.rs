@@ -21,4 +21,5 @@ pub mod database;
 pub mod descriptor;
 pub mod row_value;
 
+pub use database::*;
 pub use descriptor::*;
