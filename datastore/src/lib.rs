@@ -22,4 +22,3 @@ pub mod descriptor;
 pub mod row_value;
 
 pub use descriptor::*;
-pub use row_value::*;

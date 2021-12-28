@@ -51,7 +51,7 @@ fn build_table_ident(schema: &str, table: &str) -> String {
 }
 
 const INSERT_TEMPLATE: &str = r#"
-INSERT INTO {{ table}}(
+INSERT {% if has_pk %}OR REPLACE{% endif %} INTO {{ table}}(
     {%- for c in columns -%}
         {{- c }},
     {%- endfor -%}
@@ -77,6 +77,7 @@ fn build_insert_statements(descriptor: &DatabaseDescriptor) -> Result<HashMap<St
                 .map(|x| x.get_name())
                 .collect::<Vec<_>>(),
         );
+        context.insert("has_pk", &table.iter_columns().any(|x| x.is_primary_key()));
 
         let stmt = tera::Tera::one_off(INSERT_TEMPLATE, &context, false)?;
         debug!("Insert statement for {}: {}", table_ident, stmt);
@@ -228,6 +229,97 @@ impl Database {
             insert_statements,
             descriptor,
         })
+    }
+
+    /// Load a table, calling the user-specified function with each returned row.
+    ///
+    /// This function can fail in the middle, but will always pass valid objects to your callback.  SO e.g. if you see
+    /// 500 and then a failure, there might have been 2000.
+    pub fn load_table<T: serde::de::DeserializeOwned>(
+        &self,
+        schema: &str,
+        table: &str,
+        callback: impl Fn(T) -> Result<()>,
+    ) -> Result<()> {
+        let table_desc = self.descriptor.get_table_from_params(schema, table)?;
+        let query_text = self
+            .load_statements
+            .get(&build_table_ident(schema, table))
+            .expect("If we have a valid table, we should have an insert statement for it.");
+        let mut statement = self.conn.prepare_cached(query_text)?;
+
+        let mut rows = statement.query([])?;
+        while let Some(r) = rows.next()? {
+            let rv = crate::row_value::RowValue::from_rusqlite_row(table_desc, r)?;
+            callback(rv.deserialize()?)?;
+        }
+
+        Ok(())
+    }
+
+    /// Patch a table.  This means:
+    ///
+    /// - For any table without a primary key, just insert the rows; or
+    /// - If the table has a primary key, insert or replace.
+    ///
+    /// This is designed to allow for partial rewrites of large tables with primary keys.
+    fn patch_table<T: serde::Serialize>(
+        &mut self,
+        schema: &str,
+        table: &str,
+        values: &[T],
+    ) -> Result<()> {
+        let transaction = self.conn.transaction()?;
+        let table_desc = self.descriptor.get_table_from_params(schema, table)?;
+        let query_text = self
+            .insert_statements
+            .get(&build_table_ident(schema, table))
+            .expect("We can't have a table without a statement");
+        let mut statement = transaction.prepare_cached(query_text)?;
+
+        // The statement can be reused: row values always bind all parameters.
+        for v in values.iter() {
+            // First, from the external value to a row value:
+            let rv = crate::row_value::RowValue::new(table_desc, v)?;
+            // Then bind.
+            rv.bind_params(table_desc, &mut statement)?;
+            // And then run it.
+            statement.execute([])?;
+        }
+
+        std::mem::drop(statement);
+        transaction.commit()?;
+        Ok(())
+    }
+
+    /// Truncate the specified table.
+    ///
+    /// Deletes all contents of the table.
+    pub fn truncate_table(&self, schema: &str, table: &str) -> Result<()> {
+        // Make sure it actually exists.
+        self.descriptor.get_table_from_params(schema, table)?;
+        let table_name = build_table_ident(schema, table);
+        self.conn
+            .execute(&format!("delete from {}", table_name), [])?;
+        Ok(())
+    }
+
+    /// Delete the contents of all tables.  Primarily useful for testing.
+    pub fn truncate_all_tables(&mut self) -> Result<()> {
+        let transaction = self.conn.transaction()?;
+
+        for (schema, table) in iter_all_tables(&self.descriptor) {
+            transaction.execute(
+                &format!(
+                    "delete from {}",
+                    build_table_ident(schema, table.get_name())
+                ),
+                [],
+            )?;
+        }
+
+        transaction.commit()?;
+        Ok(())
     }
 }
 

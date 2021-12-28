@@ -201,6 +201,17 @@ impl DatabaseDescriptor {
     pub fn get_path(&self) -> &std::path::Path {
         self.path.as_path()
     }
+
+    /// get a reference to a  given table in the database from the schema/name pair, returning an error if this wasn't possible.
+
+    pub fn get_table_from_params(&self, schema: &str, table: &str) -> Result<&TableDescriptor> {
+        self.schemas
+            .get(schema)
+            .ok_or_else(|| anyhow::anyhow!("Schema {} not found", schema))?
+            .tables
+            .get(table)
+            .ok_or_else(|| anyhow::anyhow!("Table {} not found in schema {}", table, schema))
+    }
 }
 
 /// A builder for tables.
