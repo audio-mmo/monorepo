@@ -149,7 +149,7 @@ impl RowValue {
 
         for v in self.map.entries.iter() {
             let param_index = statement
-                .parameter_index(&v.name)?
+                .parameter_index(&format!(":{}", v.name))?
                 .ok_or_else(|| anyhow::anyhow!("Couldn't find parameter {}", &v.name))?;
 
             match &v.value {

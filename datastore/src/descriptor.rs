@@ -341,6 +341,10 @@ impl SchemaDescriptorBuilder {
         if name.is_empty() {
             anyhow::bail!("Migration names must be non-empty")
         };
+        if self.migrations.iter().any(|x| x.name == name) {
+            anyhow::bail!("Schema {}: duplicate migration named {}", self.name, name);
+        }
+
         // We allow empty sql.  Such a migration can run, and is useful if we ever have to yank data.
         self.migrations.push(MigrationDescriptor { name, sql });
         Ok(())

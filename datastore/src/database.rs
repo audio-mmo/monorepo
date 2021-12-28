@@ -52,12 +52,10 @@ fn build_table_ident(schema: &str, table: &str) -> String {
 
 const INSERT_TEMPLATE: &str = r#"
 INSERT {% if has_pk %}OR REPLACE{% endif %} INTO {{ table}}(
-    {%- for c in columns -%}
-        {{- c }},
-    {%- endfor -%}
+    {{ columns | join(sep=", ") }}
 ) values (
     {%- for c in columns -%}
-        :{{ c }}
+    :{{ c}}{% if not loop.last %},{% endif -%}
     {%- endfor -%}
 )
 "#;
@@ -88,7 +86,7 @@ fn build_insert_statements(descriptor: &DatabaseDescriptor) -> Result<HashMap<St
 }
 
 const LOAD_TEMPLATE: &str = r#"
-SELECT ({% for c in columns %}{{ c}} as {{ c }}{%endfor%})
+SELECT {% for c in columns %}{{ c}} as {{ c }}{% if not loop.last %}, {% endif %}{%endfor%}
 FROM {{ table }}
 "#;
 
@@ -150,16 +148,10 @@ fn run_migrations(conn: &mut rusqlite::Connection, descriptor: &DatabaseDescript
         }
 
         for mig in schema.iter_migrations() {
-            use rusqlite::OptionalExtension;
-
             // First we need to know if we already ran it.
             let had_migration = transaction
-                .execute(
-                    "SELECT id FROM migrations where schema = ?AND name = ?",
-                    rusqlite::params![schema.get_name(), mig.get_name()],
-                )
-                .optional()?
-                .is_some();
+                .prepare("SELECT * FROM migrations where schema = ? AND name = ?")?
+                .exists(rusqlite::params![schema.get_name(), mig.get_name()])?;
             if had_migration {
                 continue;
             }
@@ -240,7 +232,7 @@ impl Database {
         &self,
         schema: &str,
         table: &str,
-        callback: impl Fn(T) -> Result<()>,
+        mut callback: impl FnMut(T) -> Result<()>,
     ) -> Result<()> {
         let table_desc = self.descriptor.get_table_from_params(schema, table)?;
         let query_text = self
@@ -285,7 +277,7 @@ impl Database {
             // Then bind.
             rv.bind_params(table_desc, &mut statement)?;
             // And then run it.
-            statement.execute([])?;
+            statement.raw_execute()?;
         }
 
         std::mem::drop(statement);
@@ -328,6 +320,18 @@ impl Database {
 mod tests {
     use super::*;
 
+    use std::collections::HashMap;
+
+    /// Goes with the test schema, below.
+    #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+    struct TestRow {
+        primary_key: i64,
+        string_col: String,
+        f64_col: Option<f64>,
+        // Anything that goes to JSON is fine, but let's get coverage on the NULL.
+        json: Option<HashMap<String, String>>,
+    }
+
     /// Build a simple test schema, with a couple tables (intentionally of the same name).
     fn build_test_descriptor(path: &std::path::Path) -> Result<DatabaseDescriptor> {
         let mut desc_builder = crate::DatabaseDescriptorBuilder::new(path.to_path_buf());
@@ -337,32 +341,32 @@ mod tests {
                 for table in ["t1", "t2"] {
                     b.add_table(table.to_string(), |tb| {
                         tb.add_integer_column("primary_key".into(), true, false)?;
-                        tb.add_string_column("string".into(), false, false)?;
-                        tb.add_f64_column("f64".into(), false, true)?;
+                        tb.add_string_column("string_col".into(), false, false)?;
+                        tb.add_f64_column("f64_col".into(), false, true)?;
                         tb.add_json_column("json".into())?;
                         Ok(())
                     })?;
 
-                    // We'll build the table in 2 migrations: one to create some of the columns, and one that uses altar
+                    // We'll build the table in 2 migrations: one to create some of the columns, and one that uses alter
                     // column for the rest.
                     let m1 = format!(
                         r#"
                         CREATE TABLE {table} (
                             primary_key INTEGER PRIMARY KEY,
-                            string TEXT NOT NULL
+                            string_col TEXT NOT NULL
                         );
                     "#,
                         table = format!("{{{{ {} }}}}", table),
                     );
                     let m2 = format!(
                         r#"
-                        ALTAR TABLE {table} ADD COLUMN f64 REAL;
-                        ALTAR TABLE {table} ADD COLUMN json TEXT NOT NULL;
+                        ALTER TABLE {table} ADD COLUMN f64_col REAL;
+                        ALTER TABLE {table} ADD COLUMN json TEXT NOT NULL;
                     "#,
                         table = format!("{{{{ {} }}}}", table),
                     );
-                    b.add_sql_migration("m1".into(), m1)?;
-                    b.add_sql_migration("m2".into(), m2)?;
+                    b.add_sql_migration(format!("m1.{}", table), m1)?;
+                    b.add_sql_migration(format!("m2.{}", table), m2)?;
                 }
 
                 Ok(())
@@ -387,5 +391,106 @@ mod tests {
         Database::open(desc).expect("Database should open");
         let desc = build_test_descriptor(tdir.path()).unwrap();
         Database::open(desc).expect("Database should open");
+    }
+
+    /// Test all the I/O pieces.  It's easiest to just do this all at once, rather than to try to write separate tests.
+    /// 
+    /// Other ammo crates will eventually offer additional coverage indirectly.
+    #[test]
+    fn test_table_manipulation() {
+        let tdir = tempfile::TempDir::new().unwrap();
+        let desc = build_test_descriptor(tdir.path()).unwrap();
+        let mut db = Database::open(desc).expect("Database should open");
+
+        let mut expected_rows: HashMap<String, HashMap<String, Vec<TestRow>>> = Default::default();
+
+        for s in ["schema1", "schema2"] {
+            expected_rows.insert(s.to_string(), Default::default());
+            let schema_map = expected_rows.get_mut(s).unwrap();
+
+            for t in ["t1", "t2"] {
+                let mut json_map = HashMap::new();
+                json_map.insert("a".into(), "b".into());
+                json_map.insert("c".into(), format!("{}.{}", s, t));
+
+                // Let's make a set of rows:
+                let mut rows = (0i64..1)
+                    .map(|x| TestRow {
+                        primary_key: x,
+                        f64_col: Some(x as f64),
+                        json: Some(json_map.clone()),
+                        string_col: format!("string.{}.{}.{}", s, t, x),
+                    })
+                    .collect::<Vec<_>>();
+                // let's get coverage on the NULL:
+                rows.push(TestRow {
+                    primary_key: 11,
+                    f64_col: None,
+                    json: None,
+                    string_col: "foo".into(),
+                });
+
+                db.patch_table(s, t, &rows[..])
+                    .expect("Insert should succeed");
+                schema_map.insert(t.to_string(), rows);
+            }
+        }
+
+        // At this point, we have inserted a bunch of rows. Let's reload them and make sure they're present.
+        for (schema, tables) in expected_rows.iter() {
+            for (table, expected_rows) in tables.iter() {
+                let mut rows = vec![];
+                db.load_table(schema, table, |x: TestRow| {
+                    rows.push(x);
+                    Ok(())
+                })
+                .expect("Load should succeed");
+                assert_eq!(&rows, expected_rows);
+            }
+        }
+
+        // Now, let's patch all our rows and check that updating works.
+        for tables in expected_rows.values_mut() {
+            for rows in tables.values_mut() {
+                rows.iter_mut().enumerate().for_each(|(i, x)| {
+                    x.string_col = format!("patched{}", i);
+                });
+            }
+        }
+
+        // And re-insert:
+        for (schema, tables) in expected_rows.iter() {
+            for (table, rows) in tables.iter() {
+                db.patch_table(schema, table, &rows[..])
+                    .expect("Should patch");
+            }
+        }
+
+        // Check after the patch.
+        for (schema, tables) in expected_rows.iter() {
+            for (table, expected_rows) in tables.iter() {
+                let mut rows = vec![];
+                db.load_table(schema, table, |x: TestRow| {
+                    rows.push(x);
+                    Ok(())
+                })
+                .expect("Load should succeed");
+                assert_eq!(&rows, expected_rows);
+            }
+        }
+
+        // Now reset the database, and check that it's empty.
+        db.truncate_all_tables().expect("Should delete");
+        for schema in ["schema1", "schema2"] {
+            for table in ["t1", "t2"] {
+                let mut rows = vec![];
+                db.load_table(schema, table, |x: TestRow| {
+                    rows.push(x);
+                    Ok(())
+                })
+                .expect("Should load");
+                assert!(rows.is_empty());
+            }
+        }
     }
 }
