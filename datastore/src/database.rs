@@ -115,6 +115,86 @@ fn build_load_statements(descriptor: &DatabaseDescriptor) -> Result<HashMap<Stri
     Ok(ret)
 }
 
+/// Run the migrations for a given database, creating the initial migrations infrastructure if necessary.
+///
+/// Note that the initial migrations table is, in effect, the only thing we can't migrate without a lot of work.
+fn run_migrations(conn: &mut rusqlite::Connection, descriptor: &DatabaseDescriptor) -> Result<()> {
+    let transaction = conn.transaction()?;
+
+    // First, we create our migrations table.
+    transaction.execute(r#"CREATE TABLE IF NOT EXISTS migrations (
+        -- Incrementing, unique id for the migration.
+        id INTEGER,
+        -- Schema the migration was for.
+        schema TEXT NOT NULL,
+        -- Name of the migration.
+        name TEXT NOT NULL,
+        -- The specific sql run for this migration after template rendering, which can be useful for debugging.
+        sql TEXT NOT NULL,
+        -- Unix timestamp as real seconds
+        ran_at REAL,
+        -- Duration taken as real seconds.
+        duration REAL NOT NULL
+    )"#, [])?;
+
+    for schema in descriptor.iter_schemas() {
+        let mut ctx = tera::Context::new();
+
+        // Add all our table identifiers to the template, so that a migration may `{{ tablename }}`.
+        for table in schema.iter_tables() {
+            ctx.insert(
+                table.get_name(),
+                &build_table_ident(schema.get_name(), table.get_name()),
+            );
+        }
+
+        for mig in schema.iter_migrations() {
+            use rusqlite::OptionalExtension;
+
+            // First we need to know if we already ran it.
+            let had_migration = transaction
+                .execute(
+                    "SELECT id FROM migrations where schema = ?AND name = ?",
+                    rusqlite::params![schema.get_name(), mig.get_name()],
+                )
+                .optional()?
+                .is_some();
+            if had_migration {
+                continue;
+            }
+
+            let ran_at = (std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)?)
+            .as_secs_f64();
+
+            let start_time = std::time::Instant::now();
+            let statements = tera::Tera::one_off(mig.get_sql(), &ctx, false)?;
+            transaction.execute_batch(&statements)?;
+            let end_time = std::time::Instant::now();
+            let duration = (end_time - start_time).as_secs_f64();
+
+            // Now record that we ran it.
+            transaction.execute(
+                "INSERT INTO migrations(schema, name, sql, ran_at, duration) VALUES(?, ?, ?, ?, ?)",
+                rusqlite::params![
+                    schema.get_name(),
+                    mig.get_name(),
+                    statements.as_str(),
+                    ran_at,
+                    duration
+                ],
+            )?;
+        }
+    }
+
+    // Let's make sure that no one has played around with foreign keys.
+    transaction.execute("PRAGMA FOREIGN_KEY_CHECK", [])?;
+    transaction.execute("PRAGMA foreign_keys = 1", [])?;
+
+    transaction.commit()?;
+    Ok(())
+}
+
 impl Database {
     pub fn open(descriptor: DatabaseDescriptor) -> Result<Self> {
         use itertools::Itertools;
@@ -135,12 +215,13 @@ impl Database {
     ///
     /// This should be used for testing only.
     pub fn with_connection(
-        conn: rusqlite::Connection,
+        mut conn: rusqlite::Connection,
         descriptor: DatabaseDescriptor,
     ) -> Result<Self> {
         let load_statements = build_load_statements(&descriptor)?;
         let insert_statements = build_insert_statements(&descriptor)?;
         conn.execute_batch(INITIAL_SQL)?;
+        run_migrations(&mut conn, &descriptor)?;
         Ok(Database {
             conn,
             load_statements,
@@ -168,6 +249,27 @@ mod tests {
                         tb.add_json_column("json".into())?;
                         Ok(())
                     })?;
+
+                    // We'll build the table in 2 migrations: one to create some of the columns, and one that uses altar
+                    // column for the rest.
+                    let m1 = format!(
+                        r#"
+                        CREATE TABLE {table} (
+                            primary_key INTEGER PRIMARY KEY,
+                            string TEXT NOT NULL
+                        );
+                    "#,
+                        table = format!("{{{{ {} }}}}", table),
+                    );
+                    let m2 = format!(
+                        r#"
+                        ALTAR TABLE {table} ADD COLUMN f64 REAL;
+                        ALTAR TABLE {table} ADD COLUMN json TEXT NOT NULL;
+                    "#,
+                        table = format!("{{{{ {} }}}}", table),
+                    );
+                    b.add_sql_migration("m1".into(), m1)?;
+                    b.add_sql_migration("m2".into(), m2)?;
                 }
 
                 Ok(())
@@ -182,6 +284,18 @@ mod tests {
         let tdir = tempfile::TempDir::new().unwrap();
         let mut path = tdir.path().to_path_buf();
         path.push("database.db");
+        let desc = build_test_descriptor(&path).unwrap();
+        Database::open(desc).expect("Database should open");
+    }
+
+    /// Will detect if we ran migrations twice.
+    #[test]
+    fn opens_twice() {
+        let tdir = tempfile::TempDir::new().unwrap();
+        let mut path = tdir.path().to_path_buf();
+        path.push("database.db");
+        let desc = build_test_descriptor(&path).unwrap();
+        Database::open(desc).expect("Database should open");
         let desc = build_test_descriptor(&path).unwrap();
         Database::open(desc).expect("Database should open");
     }

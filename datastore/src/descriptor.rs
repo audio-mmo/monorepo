@@ -44,12 +44,11 @@ pub struct TableDescriptor {
 
 /// Descriptor for a migration.
 ///
-/// For now, we require that migrations are sql, and don't allow dynamic migration names.  migrations run on specific
-/// schemas and get to use tera, so any dynamicity that is necessary should come from that.
+/// For now, we require that migrations are sql.
 #[derive(Debug)]
-struct MigrationDescriptor {
-    name: &'static str,
-    sql: &'static str,
+pub struct MigrationDescriptor {
+    name: String,
+    sql: String,
 }
 
 /// A schema, which holds a collection of tables.
@@ -151,6 +150,15 @@ impl TableDescriptor {
     }
 }
 
+impl MigrationDescriptor {
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn get_sql(&self) -> &str {
+        &self.sql
+    }
+}
 impl SchemaDescriptor {
     fn new(
         name: String,
@@ -174,6 +182,10 @@ impl SchemaDescriptor {
 
     pub fn get_name(&self) -> &str {
         self.name.as_str()
+    }
+
+    pub fn iter_migrations(&self) -> impl Iterator<Item = &MigrationDescriptor> {
+        self.migrations.iter()
     }
 }
 
@@ -314,7 +326,7 @@ impl SchemaDescriptorBuilder {
     ///
     /// Migrations will be run on this schema in the order they are added to the builder, but do not run in any
     /// particular order with respect to other schemas.
-    pub fn add_sql_migration(&mut self, name: &'static str, sql: &'static str) -> Result<()> {
+    pub fn add_sql_migration(&mut self, name: String, sql: String) -> Result<()> {
         if name.is_empty() {
             anyhow::bail!("Migration names must be non-empty")
         };
