@@ -48,9 +48,12 @@ message UiElement {
     optional Menu menu = 1;
     optional GameplayArea gameplay_area = 2;
 
-    required string key = 100;
 }
 
+message UiStackEntry {
+    required UiElement element = 1;
+    required string key = 2;
+}
 // A stack of UI elements.
 //
 // When the game launches, the stack immediately populates with at least one element.  It should always remain at least
@@ -59,5 +62,5 @@ message UiElement {
 //
 // The "top" of the stack is the highest index.
 message UiStack {
-    repeated UiElement elements = 1;
+    repeated UiStackEntry entries = 1;
 }

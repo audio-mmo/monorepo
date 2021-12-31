@@ -22,7 +22,7 @@ pub struct UiStack {
     ///
     /// We need to maintain this separately, because the trait object erases what we need to know in order to do the
     /// bookkeeping.
-    current_element_states: Vec<frontend::UiElement>,
+    current_element_states: Vec<frontend::UiStackEntry>,
 
     /// The stack we last sent to the client.
     last_sent: frontend::UiStack,
@@ -51,14 +51,14 @@ impl UiStack {
                     self.elements.remove(i);
                 }
                 ProposeState(s) => {
-                    self.current_element_states[i] = s;
+                    self.current_element_states[i].element = s;
                 }
             }
         }
 
         let mut stack: frontend::UiStack = Default::default();
         stack
-            .elements
+            .entries
             .extend(self.current_element_states.iter().cloned());
         self.last_sent = stack.clone();
         Ok(Some(stack))
