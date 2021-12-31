@@ -9,7 +9,7 @@ use anyhow::Result;
 
 use ammo_protos::frontend;
 
-use crate::state::State;
+use crate::world_state::WorldState;
 
 /// Info needed to uniquely identify a UI element, and the state that it goes with.
 ///
@@ -18,7 +18,7 @@ use crate::state::State;
 /// and similar.
 pub struct UiElementDef<'a> {
     pub stack_index: usize,
-    pub client_state: &'a mut State,
+    pub world_state: &'a mut WorldState,
 }
 
 /// Results of a UI element operation.
