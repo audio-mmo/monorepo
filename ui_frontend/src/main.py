@@ -1,16 +1,20 @@
 from cytolk import tolk
 import wx
 
-import menu
-
+from menu import MenuControl
+from protos.frontend_pb2 import Menu, MenuItem
 
 def build_frame():
     frame = wx.Frame(None, title="Test App")
-    test_menu = menu.Menu(
-        frame,
-        [menu.MenuItem("item 1", 5), menu.MenuItem("Item 2", 10)],
-        lambda x: tolk.speak(x),
-    )
+    menu_def = Menu()
+    for i in ["item1", "item2"]:
+        item = MenuItem()
+        item.label = i
+        item.value = i
+        item.key = i
+        menu_def.items.append(item)
+    menu = MenuControl(frame, menu_def)
+
     return frame
 
 

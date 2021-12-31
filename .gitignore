@@ -14,4 +14,4 @@ proptest-regressions
 # places to test with.
 /assets/
 
-/__pycache_/
+__pycache__/
