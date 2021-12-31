@@ -8,6 +8,7 @@ members = [
     "ecs_derive",
     "nzslab",
     "physics",
+    "protos",
     "self_organizing_list",
     "sonifier",
 ]
