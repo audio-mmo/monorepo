@@ -64,3 +64,30 @@ message UiStackEntry {
 message UiStack {
     repeated UiStackEntry entries = 1;
 }
+
+// Ask the frontend to speak some text.
+//
+// This is trickier than it seems.  While on Windows we can simply use Tolk, other platforms can actually require UI
+// integration.  For example Mac and iOS need a UI element in order to avoid the Voiceover hack of integrating with
+// Applescript and requiring users to enable permissions.
+message SpeakRequest {
+    required string text = 1;
+
+    // If true, attempt to interrupt speech.  This is not possible on all platforms.
+    required bool interrupt = 2;
+}
+
+message ShutdownRequest {
+}
+
+// Ask the frontend to perform a service.
+//
+// This lets the backend avoid implementing things like screen reader speech which are currently trickier than they
+// ought to be from Rust, and arrange for shutdown.
+//
+// Exactly one sub-message is non-NULL.
+message ServiceRequest {
+    optional SpeakRequest speech = 1;
+
+    optional ShutdownRequest shutdown = 2;
+}
