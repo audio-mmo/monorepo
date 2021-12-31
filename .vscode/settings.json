@@ -4,5 +4,10 @@
     "editor.insertSpaces": true,
     "files.eol": "\n",
     "rust-analyzer.checkOnSave.command": "clippy",
-    "editor.rulers": [ 120 ]
+    "editor.rulers": [
+        120
+    ],
+    "rust-analyzer.diagnostics.disabled": [
+        "unresolved-macro-call"
+    ]
 }
