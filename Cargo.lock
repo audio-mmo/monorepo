@@ -48,6 +48,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ammo_client"
+version = "0.1.0"
+
+[[package]]
 name = "ammo_datastore"
 version = "0.1.0"
 dependencies = [
