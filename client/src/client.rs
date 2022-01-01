@@ -4,8 +4,7 @@ use anyhow::Result;
 
 use ammo_protos::frontend;
 
-use crate::frontend_service_provider::FrontendServiceProvider;
-use crate::ui_stack::{UiStack, UiStackHandle};
+use crate::main_thread::MainThreadHandle;
 
 /// A running client.
 ///
@@ -16,8 +15,7 @@ use crate::ui_stack::{UiStack, UiStackHandle};
 /// - The frontend then repeatedly calls [Client::dequeue_service_requests] to get service requests such as speech and
 ///   shutdown, and [Client::get_ui_stack] to get updated UI stacks.
 pub struct Client {
-    ui_stack_handle: UiStackHandle,
-    frontend_service_provider: FrontendServiceProvider,
+    main_thread: MainThreadHandle,
 }
 
 fn setup_logging() {
@@ -47,19 +45,19 @@ impl Client {
     pub fn new() -> Result<Self> {
         setup_logging();
 
-        let (_, handle) = UiStack::new_with_handle();
         Ok(Client {
-            ui_stack_handle: handle,
-            frontend_service_provider: FrontendServiceProvider::new(),
+            main_thread: crate::main_thread::spawn_main_thread()?,
         })
     }
 
     pub fn dequeue_service_requests(&self, dest: &mut Vec<frontend::ServiceRequest>) -> Result<()> {
-        self.frontend_service_provider.extract_requests(dest)?;
+        self.main_thread
+            .frontend_service_provider()
+            .extract_requests(dest)?;
         Ok(())
     }
 
     pub fn get_ui_stack(&mut self) -> Result<Option<Arc<frontend::UiStack>>> {
-        Ok(self.ui_stack_handle.get_stack())
+        Ok(self.main_thread.ui_stack().get_stack())
     }
 }
