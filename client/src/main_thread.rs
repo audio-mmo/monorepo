@@ -16,6 +16,8 @@ fn main_thread(
     _frontend_service_provider: Arc<FrontendServiceProvider>,
     _world_state: WorldState,
 ) {
+    log::info!("Main thread starting up");
+    
     loop {
         ui_stack.tick().expect("Should tick");
         std::thread::sleep(std::time::Duration::from_millis(50));
