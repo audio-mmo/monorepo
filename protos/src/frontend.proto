@@ -89,3 +89,7 @@ message ServiceRequest {
 
     optional ShutdownRequest shutdown = 2;
 }
+
+message ServiceRequestBatch {
+    repeated ServiceRequest requests = 1;
+}
