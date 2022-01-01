@@ -22,7 +22,9 @@ pub struct UiStack {
     ///
     /// We need to maintain this separately, because the trait object erases what we need to know in order to do the
     /// bookkeeping.
-    current_element_states: Vec<frontend::UiStackEntry>,
+    ///
+    /// `None` means that this element hasn't yet been initialized.
+    current_element_states: Vec<Option<frontend::UiStackEntry>>,
 
     /// The stack we last sent to the client.
     last_sent: frontend::UiStack,
@@ -33,9 +35,10 @@ impl UiStack {
         Default::default()
     }
 
-    /// Tick an element
+    /// Tick the stack.
     pub fn tick(&mut self, world_state: &mut WorldState) -> Result<Option<frontend::UiStack>> {
-        // We would really like to use retain, but that doesn't give us a mutable reference.  Instead, iterate in reverse order using a range, popping elements as we go if needed
+        // We would really like to use retain, but that doesn't give us a mutable reference.  Instead, iterate in
+        // reverse order using a range, popping elements as we go if needed
         for i in (0..self.elements.len()).rev() {
             use UiElementOperationResult::*;
 
@@ -44,6 +47,13 @@ impl UiStack {
                 stack_index: i,
             };
 
+            if self.current_element_states[i].is_none() {
+                self.current_element_states[i] = Some(frontend::UiStackEntry {
+                    element: self.elements[i].get_initial_state(&def)?,
+                    key: "foo".into(),
+                });
+            }
+
             match self.elements[i].tick(&def)? {
                 NothingChanged => continue,
                 Finished => {
@@ -51,15 +61,22 @@ impl UiStack {
                     self.elements.remove(i);
                 }
                 ProposeState(s) => {
-                    self.current_element_states[i].element = s;
+                    self.current_element_states[i]
+                        .as_mut()
+                        .expect("Should have been initialized already")
+                        .element = s;
                 }
             }
         }
 
+        // At the end of every tick, all elements should be initialized.  We don't want to support ui elements pushing
+        // to the stack during their UI tick save perhaps through `UiElementOperationResult`.
         let mut stack: frontend::UiStack = Default::default();
-        stack
-            .entries
-            .extend(self.current_element_states.iter().cloned());
+        stack.entries.extend(
+            self.current_element_states
+                .iter()
+                .map(|x| x.as_ref().expect("Should be initialized").clone()),
+        );
         self.last_sent = stack.clone();
         Ok(Some(stack))
     }

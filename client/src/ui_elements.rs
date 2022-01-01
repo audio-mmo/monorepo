@@ -39,7 +39,7 @@ pub enum UiElementOperationResult {
 
 pub trait UiElement {
     /// Called exactly once after the element is in the stack.  Must return the initial state.
-    fn get_initial_state(&mut self, ui_def: &mut UiElementDef) -> Result<frontend::UiElement>;
+    fn get_initial_state(&mut self, ui_def: &UiElementDef) -> Result<frontend::UiElement>;
 
     /// Called every game tick, as well as at startup.
     ///
