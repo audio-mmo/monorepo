@@ -32,7 +32,7 @@ impl Default for UiStackHandleState {
 
 pub struct UiStack {
     /// The running UI elements.
-    elements: Vec<Box<dyn UiElement>>,
+    elements: Vec<Arc<dyn UiElement>>,
 
     /// The states of the UI elements.
     ///
