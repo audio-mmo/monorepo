@@ -8,6 +8,8 @@
 //! next state the next time it ticks, actions to non-existant elements are simply ignored.
 //!
 //! The stack is driven by a background thread and communicated with from the frontend via a `UiStackHandle`
+//!
+//! IMPORTANT: it is critical to iterate from the top of the stack to the bottom so that elements may remove themselves.
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -73,10 +75,34 @@ impl UiStack {
         (stack, handle)
     }
 
-    /// Tick the stack.
-    pub fn tick(&mut self) -> Result<()> {
-        // We would really like to use retain, but that doesn't give us a mutable reference.  Instead, iterate in
-        // reverse order using a range, popping elements as we go if needed
+    fn remove_element(&mut self, index: usize) {
+        self.elements.remove(index);
+        self.current_element_states.remove(index);
+    }
+
+    /// Handle the result of a UI element call.
+    ///
+    /// Assumes the element was already initialized.
+    fn handle_operation_result(
+        &mut self,
+        index: usize,
+        outcome: UiElementOperationResult,
+    ) -> Result<()> {
+        match outcome {
+            UiElementOperationResult::Finished => self.remove_element(index),
+            UiElementOperationResult::ProposeState(s) => {
+                self.current_element_states[index]
+                    .as_mut()
+                    .expect("Was already initialized")
+                    .element = s
+            }
+            UiElementOperationResult::NothingChanged => {}
+        }
+        Ok(())
+    }
+
+    /// Initialize elements which need to be initialized.
+    fn initialize_elements(&mut self) -> Result<()> {
         for i in (0..self.elements.len()).rev() {
             if self.current_element_states[i].is_none() {
                 self.current_element_states[i] = Some(frontend::UiStackEntry {
@@ -86,22 +112,16 @@ impl UiStack {
             }
         }
 
+        Ok(())
+    }
+
+    /// Tick the stack.
+    pub fn tick(&mut self) -> Result<()> {
+        self.initialize_elements()?;
         self.drain_actions()?;
 
         for i in (0..self.elements.len()).rev() {
-            match self.elements[i].tick()? {
-                NothingChanged => continue,
-                Finished => {
-                    self.current_element_states.remove(i);
-                    self.elements.remove(i);
-                }
-                UiElementOperationResult::ProposeState(s) => {
-                    self.current_element_states[i]
-                        .as_mut()
-                        .expect("Should have been initialized already")
-                        .element = s;
-                }
-            }
+            self.handle_operation_result(i, self.elements[i].tick()?)?;
         }
 
         // At the end of every tick, all elements should be initialized.  We don't want to support ui elements pushing
@@ -138,19 +158,7 @@ impl UiStack {
                     UiActionKind::Complete(x) => e.do_complete(x)?,
                 };
 
-                match outcome {
-                    UiElementOperationResult::Finished => {
-                        self.elements.remove(ind);
-                        self.current_element_states.remove(ind);
-                    }
-                    UiElementOperationResult::ProposeState(s) => {
-                        self.current_element_states[ind]
-                            .as_mut()
-                            .expect("Was already initialized")
-                            .element = s
-                    }
-                    UiElementOperationResult::NothingChanged => {}
-                }
+                self.handle_operation_result(ind, outcome)?;
             }
         }
         Ok(())
