@@ -36,13 +36,20 @@ pub enum UiElementOperationResult {
     /// opt to remove the element outside the element's control.
     Finished,
 }
+
 pub trait UiElement {
+    /// Called exactly once after the element is in the stack.  Must return the initial state.
+    fn get_initial_state(&mut self, ui_def: &mut UiElementDef) -> Result<frontend::UiElement>;
+
     /// Called every game tick, as well as at startup.
     ///
-    /// The first tick is always communicated to the frontend.  Thereafter, only ticks which produce a different state
-    /// are guaranteed to be sent over, but more ticks are possible, particularly if other UI elements are changing
-    /// state.
-    fn tick(&mut self, ui_def: &UiElementDef) -> Result<UiElementOperationResult>;
+    /// Only ticks which produce a different state are guaranteed to be sent over, but more ticks are possible,
+    /// particularly if other UI elements are changing state.
+    ///
+    /// The default implementation never updates the state.  This is the most common case.
+    fn tick(&mut self, _ui_def: &UiElementDef) -> Result<UiElementOperationResult> {
+        Ok(UiElementOperationResult::NothingChanged)
+    }
 
     /// This UI element was cancelled.
     ///
