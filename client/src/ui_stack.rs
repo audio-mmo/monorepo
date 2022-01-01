@@ -11,6 +11,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use uuid::Uuid;
 
 use ammo_protos::frontend;
 
@@ -77,7 +78,7 @@ impl UiStack {
             if self.current_element_states[i].is_none() {
                 self.current_element_states[i] = Some(frontend::UiStackEntry {
                     element: self.elements[i].get_initial_state(&def)?,
-                    key: "foo".into(),
+                    key: format!("{:x}", Uuid::new_v4()),
                 });
             }
 
