@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 ammo_protos = { path = "../protos" }
 anyhow = "1.0.52"
+arc-swap = "1.5.0"
 crossbeam = "0.8.1"
 log = "0.4.14"

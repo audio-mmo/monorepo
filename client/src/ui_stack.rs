@@ -6,6 +6,10 @@
 //!
 //! Actions are addressed to elements by key, not index.  Under the assumption that the frontend is going to pick up the
 //! next state the next time it ticks, actions to non-existant elements are simply ignored.
+//!
+//! The stack is driven by a background thread and communicated with from the frontend via a `UiStackHandle`
+use std::sync::Arc;
+
 use anyhow::Result;
 
 use ammo_protos::frontend;
@@ -13,7 +17,19 @@ use ammo_protos::frontend;
 use crate::ui_elements::{UiElement, UiElementDef, UiElementOperationResult};
 use crate::world_state::WorldState;
 
-#[derive(Default)]
+struct UiStackHandleState {
+    // The stack we last sent to the client, if any.
+    stack: arc_swap::ArcSwapOption<frontend::UiStack>,
+}
+
+impl Default for UiStackHandleState {
+    fn default() -> Self {
+        Self {
+            stack: arc_swap::ArcSwapOption::new(None),
+        }
+    }
+}
+
 pub struct UiStack {
     /// The running UI elements.
     elements: Vec<Box<dyn UiElement>>,
@@ -26,17 +42,28 @@ pub struct UiStack {
     /// `None` means that this element hasn't yet been initialized.
     current_element_states: Vec<Option<frontend::UiStackEntry>>,
 
-    /// The stack we last sent to the client.
-    last_sent: frontend::UiStack,
+    handle_state: Arc<UiStackHandleState>,
+}
+
+pub struct UiStackHandle {
+    state: Arc<UiStackHandleState>,
 }
 
 impl UiStack {
-    pub fn new() -> UiStack {
-        Default::default()
+    pub fn new_with_handle() -> (UiStack, UiStackHandle) {
+        let hs: Arc<UiStackHandleState> = Arc::new(Default::default());
+        let stack = UiStack {
+            elements: Default::default(),
+            current_element_states: Default::default(),
+            handle_state: hs.clone(),
+        };
+
+        let handle = UiStackHandle { state: hs };
+        (stack, handle)
     }
 
     /// Tick the stack.
-    pub fn tick(&mut self, world_state: &mut WorldState) -> Result<Option<frontend::UiStack>> {
+    pub fn tick(&mut self, world_state: &mut WorldState) -> Result<()> {
         // We would really like to use retain, but that doesn't give us a mutable reference.  Instead, iterate in
         // reverse order using a range, popping elements as we go if needed
         for i in (0..self.elements.len()).rev() {
@@ -77,7 +104,13 @@ impl UiStack {
                 .iter()
                 .map(|x| x.as_ref().expect("Should be initialized").clone()),
         );
-        self.last_sent = stack.clone();
-        Ok(Some(stack))
+        self.handle_state.stack.store(Some(Arc::new(stack)));
+        Ok(())
+    }
+}
+
+impl UiStackHandle {
+    pub fn get_stack(&self) -> Option<Arc<frontend::UiStack>> {
+        self.state.stack.load_full()
     }
 }
