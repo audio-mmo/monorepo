@@ -60,4 +60,14 @@ impl Client {
     pub fn get_ui_stack(&mut self) -> Result<Option<Arc<frontend::UiStack>>> {
         Ok(self.main_thread.ui_stack().get_stack())
     }
+
+    /// Send a request to a given UI element to complete with the specified value.
+    pub fn do_complete(&self, target: String, value: String) -> Result<()> {
+        self.main_thread.ui_stack().do_complete(target, value)
+    }
+
+    /// Instruct a specific UI element to cancel itself.
+    pub fn do_cancel(&self, target: String) -> Result<()> {
+        self.main_thread.ui_stack().do_cancel(target)
+    }
 }
