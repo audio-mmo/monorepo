@@ -2,15 +2,22 @@
 ///
 /// This menu takes a set of items and some `T` to return, and then either resolves to the `T` or cancels.  The state of
 /// the menu is polled with `poll_outcome`.
+///
+/// Internally, this is implemented as an atomic isize which can be in an unresolved or cancelled state using negative
+/// numbers, and which otherwise represents an index into the vec of elements.
+use std::sync::atomic::{AtomicIsize, Ordering};
 use uuid::Uuid;
 
 use ammo_protos::frontend;
 
 use crate::ui_elements::{UiElement, UiElementOperationResult};
 
+const UNRESOLVED_STATE: isize = -2;
+const CANCELLED_STATE: isize = -1;
+
 pub struct SimpleMenu<T> {
     items: Vec<SimpleMenuItem<T>>,
-    state: SimpleMenuState,
+    state: AtomicIsize,
     can_cancel: bool,
     title: String,
 }
@@ -20,12 +27,6 @@ struct SimpleMenuItem<T> {
     // Sent to frontend and used to match things up at the end.
     key: uuid::Uuid,
     value: T,
-}
-
-enum SimpleMenuState {
-    Unresolved,
-    Selected(usize),
-    Cancelled,
 }
 
 pub enum SimpleMenuOutcome<'a, T> {
@@ -65,7 +66,7 @@ impl<T> SimpleMenuBuilder<T> {
     pub fn build(self) -> SimpleMenu<T> {
         SimpleMenu {
             can_cancel: self.can_cancel,
-            state: SimpleMenuState::Unresolved,
+            state: AtomicIsize::new(UNRESOLVED_STATE),
             items: self.items,
             title: self.title,
         }
@@ -74,10 +75,16 @@ impl<T> SimpleMenuBuilder<T> {
 
 impl<T> SimpleMenu<T> {
     pub fn poll_outcome(&mut self) -> SimpleMenuOutcome<T> {
-        match &self.state {
-            SimpleMenuState::Unresolved { .. } => SimpleMenuOutcome::Unresolved,
-            SimpleMenuState::Selected(x) => SimpleMenuOutcome::Selected(&self.items[*x].value),
-            SimpleMenuState::Cancelled => SimpleMenuOutcome::Cancelled,
+        let state = self.state.load(Ordering::Acquire);
+
+        if state == CANCELLED_STATE {
+            SimpleMenuOutcome::Cancelled
+        } else if state == UNRESOLVED_STATE {
+            SimpleMenuOutcome::Unresolved
+        } else if state < 0 {
+            panic!("Menu ended up in invalid state {}", state);
+        } else {
+            SimpleMenuOutcome::Selected(&self.items[state as usize].value)
         }
     }
 
@@ -105,19 +112,12 @@ impl<T> SimpleMenu<T> {
     }
 }
 
-impl<T: Send> UiElement for SimpleMenu<T> {
-    fn get_initial_state(
-        &mut self,
-        _ui_def: &super::UiElementDef,
-    ) -> anyhow::Result<frontend::UiElement> {
+impl<T: Send + Sync> UiElement for SimpleMenu<T> {
+    fn get_initial_state(&self) -> anyhow::Result<frontend::UiElement> {
         Ok(self.build_proto())
     }
 
-    fn do_complete(
-        &mut self,
-        _ui_state: &super::UiElementDef,
-        value: String,
-    ) -> anyhow::Result<super::UiElementOperationResult> {
+    fn do_complete(&self, value: String) -> anyhow::Result<super::UiElementOperationResult> {
         let uuid = Uuid::parse_str(&value)?;
 
         let mut ind: Option<usize> = None;
@@ -127,19 +127,16 @@ impl<T: Send> UiElement for SimpleMenu<T> {
             }
         }
         let ind = ind.ok_or_else(|| anyhow::anyhow!("Unable to find value in menu"))?;
-        self.state = SimpleMenuState::Selected(ind);
+        self.state.store(ind as isize, Ordering::Release);
 
         Ok(UiElementOperationResult::Finished)
     }
 
-    fn do_cancel(
-        &mut self,
-        _ui_def: &super::UiElementDef,
-    ) -> anyhow::Result<UiElementOperationResult> {
+    fn do_cancel(&self) -> anyhow::Result<UiElementOperationResult> {
         if !self.can_cancel {
             anyhow::bail!("This menu may not be cancelled");
         }
-        self.state = SimpleMenuState::Cancelled;
+        self.state.store(CANCELLED_STATE, Ordering::Release);
 
         Ok(UiElementOperationResult::Finished)
     }

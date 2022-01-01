@@ -11,9 +11,9 @@ pub struct MainThreadHandle {
     ui_stack_handle: UiStackHandle,
 }
 
-fn main_thread(mut ui_stack: UiStack, mut world_state: WorldState) {
+fn main_thread(mut ui_stack: UiStack, _world_state: WorldState) {
     loop {
-        ui_stack.tick(&mut world_state).expect("Should tick");
+        ui_stack.tick().expect("Should tick");
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
 }

@@ -15,8 +15,7 @@ use uuid::Uuid;
 
 use ammo_protos::frontend;
 
-use crate::ui_elements::{UiElement, UiElementDef, UiElementOperationResult};
-use crate::world_state::WorldState;
+use crate::ui_elements::{UiElement, UiElementOperationResult};
 
 struct UiStackHandleState {
     // The stack we last sent to the client, if any.
@@ -64,25 +63,20 @@ impl UiStack {
     }
 
     /// Tick the stack.
-    pub fn tick(&mut self, world_state: &mut WorldState) -> Result<()> {
+    pub fn tick(&mut self) -> Result<()> {
         // We would really like to use retain, but that doesn't give us a mutable reference.  Instead, iterate in
         // reverse order using a range, popping elements as we go if needed
         for i in (0..self.elements.len()).rev() {
             use UiElementOperationResult::*;
 
-            let def = UiElementDef {
-                world_state,
-                stack_index: i,
-            };
-
             if self.current_element_states[i].is_none() {
                 self.current_element_states[i] = Some(frontend::UiStackEntry {
-                    element: self.elements[i].get_initial_state(&def)?,
+                    element: self.elements[i].get_initial_state()?,
                     key: format!("{:x}", Uuid::new_v4()),
                 });
             }
 
-            match self.elements[i].tick(&def)? {
+            match self.elements[i].tick()? {
                 NothingChanged => continue,
                 Finished => {
                     self.current_element_states.remove(i);

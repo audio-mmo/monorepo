@@ -5,21 +5,13 @@
 //!
 //! The trait is allowed to error, but this should be incredibly exceptional and it's only there so that we have a
 //! second chance to catch errors without panicking across an FFI boundary.
+//!
+//! Ui elemernts generally implement their functionality using interior mutability, and are pushed onto the stack using
+//! Arc (and thus must be sync).  Despite the sync requirement, the UI elements will only have their [UiElement]
+//! implementations called from one thread, so using things like `atomic_refcell` may be appropriate.
 use anyhow::Result;
 
 use ammo_protos::frontend;
-
-use crate::world_state::WorldState;
-
-/// Info needed to uniquely identify a UI element, and the state that it goes with.
-///
-/// Elements may, e.g., shift position in the stack. Every element in the below trait thus receives an immutable
-/// reference to this struct, so that the trait can know the global state.
-/// and similar.
-pub struct UiElementDef<'a> {
-    pub stack_index: usize,
-    pub world_state: &'a mut WorldState,
-}
 
 /// Results of a UI element operation.
 ///
@@ -37,9 +29,9 @@ pub enum UiElementOperationResult {
     Finished,
 }
 
-pub trait UiElement: Send {
+pub trait UiElement: Send + Sync {
     /// Called exactly once after the element is in the stack.  Must return the initial state.
-    fn get_initial_state(&mut self, ui_def: &UiElementDef) -> Result<frontend::UiElement>;
+    fn get_initial_state(&self) -> Result<frontend::UiElement>;
 
     /// Called every game tick, as well as at startup.
     ///
@@ -47,7 +39,7 @@ pub trait UiElement: Send {
     /// particularly if other UI elements are changing state.
     ///
     /// The default implementation never updates the state.  This is the most common case.
-    fn tick(&mut self, _ui_def: &UiElementDef) -> Result<UiElementOperationResult> {
+    fn tick(&self) -> Result<UiElementOperationResult> {
         Ok(UiElementOperationResult::NothingChanged)
     }
 
@@ -56,7 +48,7 @@ pub trait UiElement: Send {
     /// This means, e.g., the user escaped out of a menu.
     ///
     /// The default action is to close the element.
-    fn do_cancel(&mut self, _ui_def: &UiElementDef) -> Result<UiElementOperationResult> {
+    fn do_cancel(&self) -> Result<UiElementOperationResult> {
         Ok(UiElementOperationResult::Finished)
     }
 
@@ -65,11 +57,7 @@ pub trait UiElement: Send {
     /// This has a dedicated, element-specific meaning, but is for example the selected string from a  menu.
     ///
     /// The default implementation pops the element from the stack without doing anything.
-    fn do_complete(
-        &mut self,
-        _ui_state: &UiElementDef,
-        _value: String,
-    ) -> Result<UiElementOperationResult> {
+    fn do_complete(&self, _value: String) -> Result<UiElementOperationResult> {
         Ok(UiElementOperationResult::Finished)
     }
 }
