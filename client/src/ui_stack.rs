@@ -11,23 +11,27 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use crossbeam::channel as chan;
 use uuid::Uuid;
 
 use ammo_protos::frontend;
 
 use crate::ui_elements::{UiElement, UiElementOperationResult};
 
+enum UiActionKind {
+    Cancel,
+    Complete(String),
+}
+
+struct UiAction {
+    target: String,
+    kind: UiActionKind,
+}
+
 struct UiStackHandleState {
     // The stack we last sent to the client, if any.
     stack: arc_swap::ArcSwapOption<frontend::UiStack>,
-}
-
-impl Default for UiStackHandleState {
-    fn default() -> Self {
-        Self {
-            stack: arc_swap::ArcSwapOption::new(None),
-        }
-    }
+    action_sender: chan::Sender<UiAction>,
 }
 
 pub struct UiStack {
@@ -43,6 +47,7 @@ pub struct UiStack {
     current_element_states: Vec<Option<frontend::UiStackEntry>>,
 
     handle_state: Arc<UiStackHandleState>,
+    action_receiver: chan::Receiver<UiAction>,
 }
 
 pub struct UiStackHandle {
@@ -51,11 +56,17 @@ pub struct UiStackHandle {
 
 impl UiStack {
     pub fn new_with_handle() -> (UiStack, UiStackHandle) {
-        let hs: Arc<UiStackHandleState> = Arc::new(Default::default());
+        let (action_sender, action_receiver) = chan::unbounded();
+
+        let hs: Arc<UiStackHandleState> = Arc::new(UiStackHandleState {
+            action_sender,
+            stack: Default::default(),
+        });
         let stack = UiStack {
             elements: Default::default(),
             current_element_states: Default::default(),
             handle_state: hs.clone(),
+            action_receiver,
         };
 
         let handle = UiStackHandle { state: hs };
@@ -67,22 +78,24 @@ impl UiStack {
         // We would really like to use retain, but that doesn't give us a mutable reference.  Instead, iterate in
         // reverse order using a range, popping elements as we go if needed
         for i in (0..self.elements.len()).rev() {
-            use UiElementOperationResult::*;
-
             if self.current_element_states[i].is_none() {
                 self.current_element_states[i] = Some(frontend::UiStackEntry {
                     element: self.elements[i].get_initial_state()?,
                     key: format!("{:x}", Uuid::new_v4()),
                 });
             }
+        }
 
+        self.drain_actions()?;
+
+        for i in (0..self.elements.len()).rev() {
             match self.elements[i].tick()? {
                 NothingChanged => continue,
                 Finished => {
                     self.current_element_states.remove(i);
                     self.elements.remove(i);
                 }
-                ProposeState(s) => {
+                UiElementOperationResult::ProposeState(s) => {
                     self.current_element_states[i]
                         .as_mut()
                         .expect("Should have been initialized already")
@@ -102,10 +115,66 @@ impl UiStack {
         self.handle_state.stack.store(Some(Arc::new(stack)));
         Ok(())
     }
+
+    fn find_element_by_key(&self, key: &str) -> Option<usize> {
+        for (i, e) in self.current_element_states.iter().enumerate() {
+            if let Some(ref x) = e {
+                if x.key == key {
+                    return Some(i);
+                }
+            }
+        }
+
+        None
+    }
+
+    fn drain_actions(&mut self) -> Result<()> {
+        while let Ok(a) = self.action_receiver.try_recv() {
+            if let Some(ind) = self.find_element_by_key(&a.target) {
+                let e = &self.elements[ind];
+
+                let outcome = match a.kind {
+                    UiActionKind::Cancel => e.do_cancel()?,
+                    UiActionKind::Complete(x) => e.do_complete(x)?,
+                };
+
+                match outcome {
+                    UiElementOperationResult::Finished => {
+                        self.elements.remove(ind);
+                        self.current_element_states.remove(ind);
+                    }
+                    UiElementOperationResult::ProposeState(s) => {
+                        self.current_element_states[ind]
+                            .as_mut()
+                            .expect("Was already initialized")
+                            .element = s
+                    }
+                    UiElementOperationResult::NothingChanged => {}
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl UiStackHandle {
     pub fn get_stack(&self) -> Option<Arc<frontend::UiStack>> {
         self.state.stack.load_full()
+    }
+
+    pub fn do_cancel(&self, target: String) -> Result<()> {
+        self.state.action_sender.send(UiAction {
+            target,
+            kind: UiActionKind::Cancel,
+        })?;
+        Ok(())
+    }
+
+    pub fn do_complete(&self, target: String, value: String) -> Result<()> {
+        self.state.action_sender.send(UiAction {
+            target,
+            kind: UiActionKind::Complete(value),
+        })?;
+        Ok(())
     }
 }
