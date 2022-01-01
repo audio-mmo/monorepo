@@ -37,7 +37,7 @@ pub enum UiElementOperationResult {
     Finished,
 }
 
-pub trait UiElement {
+pub trait UiElement: Send {
     /// Called exactly once after the element is in the stack.  Must return the initial state.
     fn get_initial_state(&mut self, ui_def: &UiElementDef) -> Result<frontend::UiElement>;
 

@@ -105,7 +105,7 @@ impl<T> SimpleMenu<T> {
     }
 }
 
-impl<T> UiElement for SimpleMenu<T> {
+impl<T: Send> UiElement for SimpleMenu<T> {
     fn get_initial_state(
         &mut self,
         _ui_def: &super::UiElementDef,

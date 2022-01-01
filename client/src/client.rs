@@ -14,7 +14,7 @@ use crate::ui_stack::{UiStack, UiStackHandle};
 /// - The frontend calls [Client::new] which initializes the client and kicks off background threads to run the
 ///   simulation and other such things.
 /// - The frontend then repeatedly calls [Client::dequeue_service_requests] to get service requests such as speech and
-///   shutdown, and [Client::tick_ui] to get updated UI stacks.
+///   shutdown, and [Client::get_ui_stack] to get updated UI stacks.
 pub struct Client {
     ui_stack_handle: UiStackHandle,
     frontend_service_provider: FrontendServiceProvider,
@@ -59,7 +59,7 @@ impl Client {
         Ok(())
     }
 
-    pub fn tick_ui(&mut self) -> Result<Option<Arc<frontend::UiStack>>> {
+    pub fn get_ui_stack(&mut self) -> Result<Option<Arc<frontend::UiStack>>> {
         Ok(self.ui_stack_handle.get_stack())
     }
 }
