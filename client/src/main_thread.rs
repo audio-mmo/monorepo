@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 
 use crate::frontend_service_provider::FrontendServiceProvider;
@@ -6,10 +8,14 @@ use crate::world_state::WorldState;
 
 pub struct MainThreadHandle {
     ui_stack_handle: UiStackHandle,
-    frontend_service_provider: FrontendServiceProvider,
+    frontend_service_provider: Arc<FrontendServiceProvider>,
 }
 
-fn main_thread(mut ui_stack: UiStack, _world_state: WorldState) {
+fn main_thread(
+    mut ui_stack: UiStack,
+    _frontend_service_provider: Arc<FrontendServiceProvider>,
+    _world_state: WorldState,
+) {
     loop {
         ui_stack.tick().expect("Should tick");
         std::thread::sleep(std::time::Duration::from_millis(50));
@@ -19,10 +25,12 @@ fn main_thread(mut ui_stack: UiStack, _world_state: WorldState) {
 pub fn spawn_main_thread() -> Result<MainThreadHandle> {
     let (ui_stack, ui_stack_handle) = UiStack::new_with_handle();
     let world_state = WorldState::new();
-    std::thread::spawn(move || main_thread(ui_stack, world_state));
+    let frontend_service_provider = Arc::new(FrontendServiceProvider::new());
+    let fsp_cloned = frontend_service_provider.clone();
+    std::thread::spawn(move || main_thread(ui_stack, fsp_cloned, world_state));
     Ok(MainThreadHandle {
         ui_stack_handle,
-        frontend_service_provider: FrontendServiceProvider::new(),
+        frontend_service_provider,
     })
 }
 
