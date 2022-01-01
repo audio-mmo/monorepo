@@ -10,5 +10,7 @@ ammo_protos = { path = "../protos" }
 anyhow = "1.0.52"
 arc-swap = "1.5.0"
 crossbeam = "0.8.1"
+env_logger = "0.9.0"
 log = "0.4.14"
+time = "0.3.5"
 uuid = { version = "0.8.2", features = ["v4"] }

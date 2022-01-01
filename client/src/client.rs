@@ -20,8 +20,33 @@ pub struct Client {
     frontend_service_provider: FrontendServiceProvider,
 }
 
+fn setup_logging() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+
+    ONCE.call_once(|| {
+        env_logger::builder()
+            .format(|buf, record| {
+                use std::io::Write;
+
+                let now = time::OffsetDateTime::now_utc();
+
+                writeln!(
+                    buf,
+                    "{} {} time={} target={}",
+                    record.level(),
+                    record.args(),
+                    now,
+                    record.target()
+                )
+            })
+            .init();
+    });
+}
+
 impl Client {
     pub fn new() -> Result<Self> {
+        setup_logging();
+
         let (_, handle) = UiStack::new_with_handle();
         Ok(Client {
             ui_stack_handle: handle,
