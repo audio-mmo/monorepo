@@ -26,19 +26,17 @@ message MenuItem {
     required string key = 3;
 }
 
-// A menu.  Supports inserting and removing items.
+// A menu.
 //
-// Menus are for things like action lists, "what do you want to do next" selections, and similar.
+// Menus are for things like action lists, "what do you want to do next" selections, and similar.  For now, we don't
+// support modifying the menu once it's open.
 message Menu {
     required string title = 1;
     repeated MenuItem items = 2;
-
-    required string key = 100;
 }
 
 // Represents the main gameplay control.  Has no fields because the frontend handles setting this up.
 message GameplayArea {
-    required string key = 100;
 }
 
 // A UI element.
