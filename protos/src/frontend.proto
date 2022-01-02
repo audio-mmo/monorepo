@@ -33,6 +33,7 @@ message MenuItem {
 message Menu {
     required string title = 1;
     repeated MenuItem items = 2;
+    required bool can_cancel = 3;
 }
 
 // Represents the main gameplay control.  Has no fields because the frontend handles setting this up.
@@ -86,7 +87,7 @@ message ShutdownRequest {
 // ought to be from Rust, and arrange for shutdown.
 message ServiceRequest {
     oneof service {
-        SpeakRequest speech = 1;
+        SpeakRequest speak = 1;
         ShutdownRequest shutdown = 2;
     }
 }

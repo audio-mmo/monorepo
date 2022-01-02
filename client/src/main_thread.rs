@@ -27,6 +27,8 @@ fn main_thread(
     ui_stack.push_element(menu.clone()).expect("Should push");
 
     let selected = loop {
+        ui_stack.tick().expect("Should tick");
+
         match menu.poll_outcome() {
             SimpleMenuOutcome::Unresolved => {}
             SimpleMenuOutcome::Cancelled => break None,

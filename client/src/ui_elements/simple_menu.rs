@@ -107,6 +107,7 @@ impl<T> SimpleMenu<T> {
         let menu = frontend::Menu {
             title: self.title.clone(),
             items,
+            can_cancel: self.can_cancel,
         };
         frontend::UiElement {
             element: Some(frontend::ui_element::Element::Menu(menu)),

@@ -24,7 +24,7 @@ impl FrontendServiceProvider {
             text: text.to_string(),
         };
         let req: frontend::ServiceRequest = frontend::ServiceRequest {
-            service: Some(frontend::service_request::Service::Speech(command_payload)),
+            service: Some(frontend::service_request::Service::Speak(command_payload)),
         };
         self.request_sender.send(req)?;
         Ok(())
