@@ -2,9 +2,10 @@ import wx
 from cytolk import tolk
 
 from protos.frontend_pb2 import Menu, MenuItem
+from ui_element import UiElement
 
 
-class MenuControl:
+class MenuControl(UiElement):
     def __init__(self, parent, client, proto, key):
         self.client = client
         self.proto = proto
