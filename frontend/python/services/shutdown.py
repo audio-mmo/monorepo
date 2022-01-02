@@ -1,5 +1,5 @@
-import wx
+import sys
 
 
 def shutdown():
-    wx.Exit()
+    sys.exit(0)

@@ -47,6 +47,9 @@ fn main_thread(
             .speak("Cancelled", false)
             .expect("Should speak");
     }
+
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    frontend_service_provider.shutdown().unwrap();
 }
 
 pub fn spawn_main_thread() -> Result<MainThreadHandle> {
