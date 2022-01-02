@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto2',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0e\x66rontend.proto\x12\x08\x66rontend\"5\n\x08MenuItem\x12\r\n\x05label\x18\x01 \x02(\t\x12\r\n\x05value\x18\x02 \x02(\t\x12\x0b\n\x03key\x18\x03 \x02(\t\"E\n\x04Menu\x12\r\n\x05title\x18\x01 \x02(\t\x12!\n\x05items\x18\x02 \x03(\x0b\x32\x12.frontend.MenuItem\x12\x0b\n\x03key\x18\x64 \x02(\t\"\x1b\n\x0cGameplayArea\x12\x0b\n\x03key\x18\x64 \x02(\t\"e\n\tUiElement\x12\x1c\n\x04menu\x18\x01 \x01(\x0b\x32\x0e.frontend.Menu\x12-\n\rgameplay_area\x18\x02 \x01(\x0b\x32\x16.frontend.GameplayArea\x12\x0b\n\x03key\x18\x64 \x02(\t\"0\n\x07UiStack\x12%\n\x08\x65lements\x18\x01 \x03(\x0b\x32\x13.frontend.UiElement'
+  serialized_pb=b'\n\x0e\x66rontend.proto\x12\x08\x66rontend\"5\n\x08MenuItem\x12\r\n\x05label\x18\x01 \x02(\t\x12\r\n\x05value\x18\x02 \x02(\t\x12\x0b\n\x03key\x18\x03 \x02(\t\"8\n\x04Menu\x12\r\n\x05title\x18\x01 \x02(\t\x12!\n\x05items\x18\x02 \x03(\x0b\x32\x12.frontend.MenuItem\"\x0e\n\x0cGameplayArea\"g\n\tUiElement\x12\x1e\n\x04menu\x18\x01 \x01(\x0b\x32\x0e.frontend.MenuH\x00\x12/\n\rgameplay_area\x18\x02 \x01(\x0b\x32\x16.frontend.GameplayAreaH\x00\x42\t\n\x07\x65lement\"A\n\x0cUiStackEntry\x12$\n\x07\x65lement\x18\x01 \x02(\x0b\x32\x13.frontend.UiElement\x12\x0b\n\x03key\x18\x02 \x02(\t\"2\n\x07UiStack\x12\'\n\x07\x65ntries\x18\x01 \x03(\x0b\x32\x16.frontend.UiStackEntry\"/\n\x0cSpeakRequest\x12\x0c\n\x04text\x18\x01 \x02(\t\x12\x11\n\tinterrupt\x18\x02 \x02(\x08\"\x11\n\x0fShutdownRequest\"t\n\x0eServiceRequest\x12(\n\x06speech\x18\x01 \x01(\x0b\x32\x16.frontend.SpeakRequestH\x00\x12-\n\x08shutdown\x18\x02 \x01(\x0b\x32\x19.frontend.ShutdownRequestH\x00\x42\t\n\x07service\"A\n\x13ServiceRequestBatch\x12*\n\x08requests\x18\x01 \x03(\x0b\x32\x18.frontend.ServiceRequest'
 )
 
 
@@ -93,13 +93,6 @@ _MENU = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='key', full_name='frontend.Menu.key', index=2,
-      number=100, type=9, cpp_type=9, label=2,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -113,7 +106,7 @@ _MENU = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=83,
-  serialized_end=152,
+  serialized_end=139,
 )
 
 
@@ -125,13 +118,6 @@ _GAMEPLAYAREA = _descriptor.Descriptor(
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
-    _descriptor.FieldDescriptor(
-      name='key', full_name='frontend.GameplayArea.key', index=0,
-      number=100, type=9, cpp_type=9, label=2,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -144,8 +130,8 @@ _GAMEPLAYAREA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=154,
-  serialized_end=181,
+  serialized_start=141,
+  serialized_end=155,
 )
 
 
@@ -171,9 +157,46 @@ _UIELEMENT = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto2',
+  extension_ranges=[],
+  oneofs=[
+    _descriptor.OneofDescriptor(
+      name='element', full_name='frontend.UiElement.element',
+      index=0, containing_type=None,
+      create_key=_descriptor._internal_create_key,
+    fields=[]),
+  ],
+  serialized_start=157,
+  serialized_end=260,
+)
+
+
+_UISTACKENTRY = _descriptor.Descriptor(
+  name='UiStackEntry',
+  full_name='frontend.UiStackEntry',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
     _descriptor.FieldDescriptor(
-      name='key', full_name='frontend.UiElement.key', index=2,
-      number=100, type=9, cpp_type=9, label=2,
+      name='element', full_name='frontend.UiStackEntry.element', index=0,
+      number=1, type=11, cpp_type=10, label=2,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='key', full_name='frontend.UiStackEntry.key', index=1,
+      number=2, type=9, cpp_type=9, label=2,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -190,8 +213,8 @@ _UIELEMENT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=183,
-  serialized_end=284,
+  serialized_start=262,
+  serialized_end=327,
 )
 
 
@@ -204,7 +227,7 @@ _UISTACK = _descriptor.Descriptor(
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='elements', full_name='frontend.UiStack.elements', index=0,
+      name='entries', full_name='frontend.UiStack.entries', index=0,
       number=1, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -222,19 +245,180 @@ _UISTACK = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=286,
-  serialized_end=334,
+  serialized_start=329,
+  serialized_end=379,
+)
+
+
+_SPEAKREQUEST = _descriptor.Descriptor(
+  name='SpeakRequest',
+  full_name='frontend.SpeakRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='text', full_name='frontend.SpeakRequest.text', index=0,
+      number=1, type=9, cpp_type=9, label=2,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='interrupt', full_name='frontend.SpeakRequest.interrupt', index=1,
+      number=2, type=8, cpp_type=7, label=2,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto2',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=381,
+  serialized_end=428,
+)
+
+
+_SHUTDOWNREQUEST = _descriptor.Descriptor(
+  name='ShutdownRequest',
+  full_name='frontend.ShutdownRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto2',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=430,
+  serialized_end=447,
+)
+
+
+_SERVICEREQUEST = _descriptor.Descriptor(
+  name='ServiceRequest',
+  full_name='frontend.ServiceRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='speech', full_name='frontend.ServiceRequest.speech', index=0,
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='shutdown', full_name='frontend.ServiceRequest.shutdown', index=1,
+      number=2, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto2',
+  extension_ranges=[],
+  oneofs=[
+    _descriptor.OneofDescriptor(
+      name='service', full_name='frontend.ServiceRequest.service',
+      index=0, containing_type=None,
+      create_key=_descriptor._internal_create_key,
+    fields=[]),
+  ],
+  serialized_start=449,
+  serialized_end=565,
+)
+
+
+_SERVICEREQUESTBATCH = _descriptor.Descriptor(
+  name='ServiceRequestBatch',
+  full_name='frontend.ServiceRequestBatch',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='requests', full_name='frontend.ServiceRequestBatch.requests', index=0,
+      number=1, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto2',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=567,
+  serialized_end=632,
 )
 
 _MENU.fields_by_name['items'].message_type = _MENUITEM
 _UIELEMENT.fields_by_name['menu'].message_type = _MENU
 _UIELEMENT.fields_by_name['gameplay_area'].message_type = _GAMEPLAYAREA
-_UISTACK.fields_by_name['elements'].message_type = _UIELEMENT
+_UIELEMENT.oneofs_by_name['element'].fields.append(
+  _UIELEMENT.fields_by_name['menu'])
+_UIELEMENT.fields_by_name['menu'].containing_oneof = _UIELEMENT.oneofs_by_name['element']
+_UIELEMENT.oneofs_by_name['element'].fields.append(
+  _UIELEMENT.fields_by_name['gameplay_area'])
+_UIELEMENT.fields_by_name['gameplay_area'].containing_oneof = _UIELEMENT.oneofs_by_name['element']
+_UISTACKENTRY.fields_by_name['element'].message_type = _UIELEMENT
+_UISTACK.fields_by_name['entries'].message_type = _UISTACKENTRY
+_SERVICEREQUEST.fields_by_name['speech'].message_type = _SPEAKREQUEST
+_SERVICEREQUEST.fields_by_name['shutdown'].message_type = _SHUTDOWNREQUEST
+_SERVICEREQUEST.oneofs_by_name['service'].fields.append(
+  _SERVICEREQUEST.fields_by_name['speech'])
+_SERVICEREQUEST.fields_by_name['speech'].containing_oneof = _SERVICEREQUEST.oneofs_by_name['service']
+_SERVICEREQUEST.oneofs_by_name['service'].fields.append(
+  _SERVICEREQUEST.fields_by_name['shutdown'])
+_SERVICEREQUEST.fields_by_name['shutdown'].containing_oneof = _SERVICEREQUEST.oneofs_by_name['service']
+_SERVICEREQUESTBATCH.fields_by_name['requests'].message_type = _SERVICEREQUEST
 DESCRIPTOR.message_types_by_name['MenuItem'] = _MENUITEM
 DESCRIPTOR.message_types_by_name['Menu'] = _MENU
 DESCRIPTOR.message_types_by_name['GameplayArea'] = _GAMEPLAYAREA
 DESCRIPTOR.message_types_by_name['UiElement'] = _UIELEMENT
+DESCRIPTOR.message_types_by_name['UiStackEntry'] = _UISTACKENTRY
 DESCRIPTOR.message_types_by_name['UiStack'] = _UISTACK
+DESCRIPTOR.message_types_by_name['SpeakRequest'] = _SPEAKREQUEST
+DESCRIPTOR.message_types_by_name['ShutdownRequest'] = _SHUTDOWNREQUEST
+DESCRIPTOR.message_types_by_name['ServiceRequest'] = _SERVICEREQUEST
+DESCRIPTOR.message_types_by_name['ServiceRequestBatch'] = _SERVICEREQUESTBATCH
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 MenuItem = _reflection.GeneratedProtocolMessageType('MenuItem', (_message.Message,), {
@@ -265,12 +449,47 @@ UiElement = _reflection.GeneratedProtocolMessageType('UiElement', (_message.Mess
   })
 _sym_db.RegisterMessage(UiElement)
 
+UiStackEntry = _reflection.GeneratedProtocolMessageType('UiStackEntry', (_message.Message,), {
+  'DESCRIPTOR' : _UISTACKENTRY,
+  '__module__' : 'frontend_pb2'
+  # @@protoc_insertion_point(class_scope:frontend.UiStackEntry)
+  })
+_sym_db.RegisterMessage(UiStackEntry)
+
 UiStack = _reflection.GeneratedProtocolMessageType('UiStack', (_message.Message,), {
   'DESCRIPTOR' : _UISTACK,
   '__module__' : 'frontend_pb2'
   # @@protoc_insertion_point(class_scope:frontend.UiStack)
   })
 _sym_db.RegisterMessage(UiStack)
+
+SpeakRequest = _reflection.GeneratedProtocolMessageType('SpeakRequest', (_message.Message,), {
+  'DESCRIPTOR' : _SPEAKREQUEST,
+  '__module__' : 'frontend_pb2'
+  # @@protoc_insertion_point(class_scope:frontend.SpeakRequest)
+  })
+_sym_db.RegisterMessage(SpeakRequest)
+
+ShutdownRequest = _reflection.GeneratedProtocolMessageType('ShutdownRequest', (_message.Message,), {
+  'DESCRIPTOR' : _SHUTDOWNREQUEST,
+  '__module__' : 'frontend_pb2'
+  # @@protoc_insertion_point(class_scope:frontend.ShutdownRequest)
+  })
+_sym_db.RegisterMessage(ShutdownRequest)
+
+ServiceRequest = _reflection.GeneratedProtocolMessageType('ServiceRequest', (_message.Message,), {
+  'DESCRIPTOR' : _SERVICEREQUEST,
+  '__module__' : 'frontend_pb2'
+  # @@protoc_insertion_point(class_scope:frontend.ServiceRequest)
+  })
+_sym_db.RegisterMessage(ServiceRequest)
+
+ServiceRequestBatch = _reflection.GeneratedProtocolMessageType('ServiceRequestBatch', (_message.Message,), {
+  'DESCRIPTOR' : _SERVICEREQUESTBATCH,
+  '__module__' : 'frontend_pb2'
+  # @@protoc_insertion_point(class_scope:frontend.ServiceRequestBatch)
+  })
+_sym_db.RegisterMessage(ServiceRequestBatch)
 
 
 # @@protoc_insertion_point(module_scope)
