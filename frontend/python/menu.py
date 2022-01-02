@@ -34,6 +34,7 @@ class MenuControl:
 
         if len(proto.items):
             self.list.Select(0)
+            self.list.Focus(0)
 
     def set_parent_if_changed(self, new_parent):
         if self.current_parent is not new_parent:
