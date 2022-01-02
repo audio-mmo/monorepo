@@ -24,8 +24,7 @@ impl FrontendServiceProvider {
             text: text.to_string(),
         };
         let req: frontend::ServiceRequest = frontend::ServiceRequest {
-            speech: Some(command_payload),
-            ..Default::default()
+            service: Some(frontend::service_request::Service::Speech(command_payload)),
         };
         self.request_sender.send(req)?;
         Ok(())
@@ -33,8 +32,9 @@ impl FrontendServiceProvider {
 
     pub fn shutdown(&self) -> Result<()> {
         let cmd: ServiceRequest = ServiceRequest {
-            shutdown: Some(Default::default()),
-            ..Default::default()
+            service: Some(frontend::service_request::Service::Shutdown(
+                Default::default(),
+            )),
         };
         self.request_sender.send(cmd)?;
         Ok(())

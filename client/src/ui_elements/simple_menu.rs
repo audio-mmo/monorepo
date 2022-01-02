@@ -109,8 +109,7 @@ impl<T> SimpleMenu<T> {
             items,
         };
         frontend::UiElement {
-            menu: Some(menu),
-            ..Default::default()
+            element: Some(frontend::ui_element::Element::Menu(menu)),
         }
     }
 }
