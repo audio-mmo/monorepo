@@ -57,7 +57,7 @@ impl Client {
         Ok(())
     }
 
-    pub fn get_ui_stack(&mut self) -> Result<Option<Arc<frontend::UiStack>>> {
+    pub fn get_ui_stack(&self) -> Result<Option<Arc<frontend::UiStack>>> {
         Ok(self.main_thread.ui_stack().get_stack())
     }
 

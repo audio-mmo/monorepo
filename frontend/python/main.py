@@ -1,6 +1,8 @@
 from cytolk import tolk
 import wx
 
+import ammo_frontend
+
 from menu import MenuControl
 from protos.frontend_pb2 import Menu, MenuItem
 
@@ -20,6 +22,8 @@ def build_frame():
 
 def main():
     with tolk.tolk():
+        client = ammo_frontend.start_client()
+        print(client)
         app = wx.App()
         frame = build_frame()
         frame.Show()

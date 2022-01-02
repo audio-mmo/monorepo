@@ -115,6 +115,9 @@ name = "ammo_frontend"
 version = "0.1.0"
 dependencies = [
  "ammo_client",
+ "ammo_protos",
+ "anyhow",
+ "prost",
  "pyo3",
 ]
 
