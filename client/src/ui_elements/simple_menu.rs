@@ -5,7 +5,10 @@
 ///
 /// Internally, this is implemented as an atomic isize which can be in an unresolved or cancelled state using negative
 /// numbers, and which otherwise represents an index into the vec of elements.
-use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::{
+    atomic::{AtomicIsize, Ordering},
+    Arc,
+};
 use uuid::Uuid;
 
 use ammo_protos::frontend;
@@ -63,18 +66,18 @@ impl<T> SimpleMenuBuilder<T> {
         });
     }
 
-    pub fn build(self) -> SimpleMenu<T> {
-        SimpleMenu {
+    pub fn build(self) -> Arc<SimpleMenu<T>> {
+        Arc::new(SimpleMenu {
             can_cancel: self.can_cancel,
             state: AtomicIsize::new(UNRESOLVED_STATE),
             items: self.items,
             title: self.title,
-        }
+        })
     }
 }
 
 impl<T> SimpleMenu<T> {
-    pub fn poll_outcome(&mut self) -> SimpleMenuOutcome<T> {
+    pub fn poll_outcome(&self) -> SimpleMenuOutcome<T> {
         let state = self.state.load(Ordering::Acquire);
 
         if state == CANCELLED_STATE {
@@ -112,7 +115,7 @@ impl<T> SimpleMenu<T> {
     }
 }
 
-impl<T: Send + Sync> UiElement for SimpleMenu<T> {
+impl<T: Send + Sync + 'static> UiElement for SimpleMenu<T> {
     fn get_initial_state(&self) -> anyhow::Result<frontend::UiElement> {
         Ok(self.build_proto())
     }

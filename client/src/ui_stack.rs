@@ -163,6 +163,12 @@ impl UiStack {
         }
         Ok(())
     }
+
+    pub fn push_element(&mut self, element: Arc<dyn UiElement>) -> Result<()> {
+        self.elements.push(element);
+        self.current_element_states.push(None);
+        Ok(())
+    }
 }
 
 impl UiStackHandle {

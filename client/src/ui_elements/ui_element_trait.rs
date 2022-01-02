@@ -29,7 +29,7 @@ pub enum UiElementOperationResult {
     Finished,
 }
 
-pub trait UiElement: Send + Sync {
+pub trait UiElement: Send + Sync + 'static {
     /// Called exactly once after the element is in the stack.  Must return the initial state.
     fn get_initial_state(&self) -> Result<frontend::UiElement>;
 
