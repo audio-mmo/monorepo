@@ -61,8 +61,17 @@ pub fn benchmarks(c: &mut Criterion) {
             let rows = build_test_rows(*size as usize);
 
             b.iter(move || {
-                db.patch_table("s", "t", &rows[..]).unwrap();
-                db.truncate_all_tables().unwrap();
+                {
+                    let mut t = db.transaction().unwrap();
+                    t.patch_table("s", "t", &rows[..]).unwrap();
+                    t.commit().unwrap();
+                }
+
+                {
+                    let mut t = db.transaction().unwrap();
+                    t.truncate_all_tables().unwrap();
+                    t.commit().unwrap();
+                }
             });
         });
     }

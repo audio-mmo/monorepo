@@ -6,9 +6,7 @@ use log::*;
 
 use crate::DatabaseDescriptor;
 
-pub struct Database {
-    conn: rusqlite::Connection,
-
+struct DatabaseState {
     /// Maps table name to prebuilt insert statements for the table.
     insert_statements: HashMap<String, String>,
 
@@ -16,6 +14,17 @@ pub struct Database {
     load_statements: HashMap<String, String>,
 
     descriptor: DatabaseDescriptor,
+}
+
+pub struct Database {
+    conn: rusqlite::Connection,
+    state: DatabaseState,
+}
+
+/// A transaction like that from rusqlite: drop rolls back, calling commit commits.
+pub struct Transaction<'a> {
+    state: &'a DatabaseState,
+    transaction: rusqlite::Transaction<'a>,
 }
 
 /// SQL that we run as part of opening a connection.
@@ -217,13 +226,24 @@ impl Database {
         conn.execute_batch(INITIAL_SQL)?;
         run_migrations(&mut conn, &descriptor)?;
         Ok(Database {
+            state: DatabaseState {
+                load_statements,
+                insert_statements,
+                descriptor,
+            },
             conn,
-            load_statements,
-            insert_statements,
-            descriptor,
         })
     }
 
+    pub fn transaction(&mut self) -> Result<Transaction> {
+        Ok(Transaction {
+            state: &self.state,
+            transaction: self.conn.transaction()?,
+        })
+    }
+}
+
+impl<'a> Transaction<'a> {
     /// Load a table, calling the user-specified function with each returned row.
     ///
     /// This function can fail in the middle, but will always pass valid objects to your callback.  SO e.g. if you see
@@ -234,12 +254,13 @@ impl Database {
         table: &str,
         mut callback: impl FnMut(T) -> Result<()>,
     ) -> Result<()> {
-        let table_desc = self.descriptor.get_table_from_params(schema, table)?;
+        let table_desc = self.state.descriptor.get_table_from_params(schema, table)?;
         let query_text = self
+            .state
             .load_statements
             .get(&build_table_ident(schema, table))
             .expect("If we have a valid table, we should have an insert statement for it.");
-        let mut statement = self.conn.prepare_cached(query_text)?;
+        let mut statement = self.transaction.prepare_cached(query_text)?;
 
         let mut rows = statement.query([])?;
         while let Some(r) = rows.next()? {
@@ -262,13 +283,13 @@ impl Database {
         table: &str,
         values: &[T],
     ) -> Result<()> {
-        let transaction = self.conn.transaction()?;
-        let table_desc = self.descriptor.get_table_from_params(schema, table)?;
+        let table_desc = self.state.descriptor.get_table_from_params(schema, table)?;
         let query_text = self
+            .state
             .insert_statements
             .get(&build_table_ident(schema, table))
             .expect("We can't have a table without a statement");
-        let mut statement = transaction.prepare_cached(query_text)?;
+        let mut statement = self.transaction.prepare_cached(query_text)?;
 
         // The statement can be reused: row values always bind all parameters.
         for v in values.iter() {
@@ -280,8 +301,6 @@ impl Database {
             statement.raw_execute()?;
         }
 
-        std::mem::drop(statement);
-        transaction.commit()?;
         Ok(())
     }
 
@@ -290,19 +309,17 @@ impl Database {
     /// Deletes all contents of the table.
     pub fn truncate_table(&self, schema: &str, table: &str) -> Result<()> {
         // Make sure it actually exists.
-        self.descriptor.get_table_from_params(schema, table)?;
+        self.state.descriptor.get_table_from_params(schema, table)?;
         let table_name = build_table_ident(schema, table);
-        self.conn
+        self.transaction
             .execute(&format!("delete from {}", table_name), [])?;
         Ok(())
     }
 
     /// Delete the contents of all tables.  Primarily useful for testing.
     pub fn truncate_all_tables(&mut self) -> Result<()> {
-        let transaction = self.conn.transaction()?;
-
-        for (schema, table) in iter_all_tables(&self.descriptor) {
-            transaction.execute(
+        for (schema, table) in iter_all_tables(&self.state.descriptor) {
+            self.transaction.execute(
                 &format!(
                     "delete from {}",
                     build_table_ident(schema, table.get_name())
@@ -311,8 +328,11 @@ impl Database {
             )?;
         }
 
-        transaction.commit()?;
         Ok(())
+    }
+
+    pub fn commit(self) -> Result<()> {
+        Ok(self.transaction.commit()?)
     }
 }
 
@@ -430,8 +450,11 @@ mod tests {
                     string_col: "foo".into(),
                 });
 
-                db.patch_table(s, t, &rows[..])
+                let mut transaction = db.transaction().expect("Should make a transaction");
+                transaction
+                    .patch_table(s, t, &rows[..])
                     .expect("Insert should succeed");
+                transaction.commit().expect("Should commit");
                 schema_map.insert(t.to_string(), rows);
             }
         }
@@ -440,11 +463,13 @@ mod tests {
         for (schema, tables) in expected_rows.iter() {
             for (table, expected_rows) in tables.iter() {
                 let mut rows = vec![];
-                db.load_table(schema, table, |x: TestRow| {
-                    rows.push(x);
-                    Ok(())
-                })
-                .expect("Load should succeed");
+                let transaction = db.transaction().unwrap();
+                transaction
+                    .load_table(schema, table, |x: TestRow| {
+                        rows.push(x);
+                        Ok(())
+                    })
+                    .expect("Load should succeed");
                 assert_eq!(&rows, expected_rows);
             }
         }
@@ -458,37 +483,47 @@ mod tests {
             }
         }
 
-        // And re-insert:
+        // And re-insert, but this time all as part of the same transaction:
+        let mut transaction = db.transaction().unwrap();
         for (schema, tables) in expected_rows.iter() {
             for (table, rows) in tables.iter() {
-                db.patch_table(schema, table, &rows[..])
+                transaction
+                    .patch_table(schema, table, &rows[..])
                     .expect("Should patch");
             }
         }
+
+        transaction.commit().unwrap();
 
         // Check after the patch.
         for (schema, tables) in expected_rows.iter() {
             for (table, expected_rows) in tables.iter() {
                 let mut rows = vec![];
-                db.load_table(schema, table, |x: TestRow| {
-                    rows.push(x);
-                    Ok(())
-                })
-                .expect("Load should succeed");
+                db.transaction()
+                    .unwrap()
+                    .load_table(schema, table, |x: TestRow| {
+                        rows.push(x);
+                        Ok(())
+                    })
+                    .expect("Load should succeed");
                 assert_eq!(&rows, expected_rows);
             }
         }
 
         // Now reset the database, and check that it's empty.
-        db.truncate_all_tables().expect("Should delete");
+        let mut transaction = db.transaction().unwrap();
+        transaction.truncate_all_tables().expect("Should delete");
+        transaction.commit().unwrap();
         for schema in ["schema1", "schema2"] {
             for table in ["t1", "t2"] {
                 let mut rows = vec![];
-                db.load_table(schema, table, |x: TestRow| {
-                    rows.push(x);
-                    Ok(())
-                })
-                .expect("Should load");
+                db.transaction()
+                    .unwrap()
+                    .load_table(schema, table, |x: TestRow| {
+                        rows.push(x);
+                        Ok(())
+                    })
+                    .expect("Should load");
                 assert!(rows.is_empty());
             }
         }
