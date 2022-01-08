@@ -111,6 +111,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ammo_framer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "derive_more",
+ "log",
+ "proptest",
+ "proptest-derive",
+ "thiserror",
+]
+
+[[package]]
 name = "ammo_frontend"
 version = "0.1.0"
 dependencies = [

@@ -7,6 +7,7 @@ members = [
     "datastore",
     "ecs",
     "ecs_derive",
+    "framer",
     "frontend",
     "nzslab",
     "physics",
