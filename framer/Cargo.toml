@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.52"
 bytes = "1.1.0"
 derive_more = "0.99.17"
 log = "0.4.14"

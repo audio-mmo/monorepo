@@ -1,7 +1,6 @@
 /// A header for a message.  Contains the length, kind, namespace, and id.
 ///
 /// On the wire,  this is parsed as a kind byte, a namespace id as a u8, and an id as a u16.
-use anyhow::Result;
 use bytes::{Buf, BufMut};
 
 /// Size of the header, excluding length.
@@ -24,6 +23,13 @@ pub(crate) enum HeaderKind {
     Component,
 }
 
+#[derive(Debug, derive_more::Display, thiserror::Error)]
+#[non_exhaustive]
+pub(crate) enum HeaderDecodingError {
+    NotEnoughData,
+    InvalidHeaderKind(u8),
+}
+
 /// Used to convert header kinds to/from ints.  Must contain all header kinds.  This makes sure that we never
 /// accidentally mismatch the to_int and from_int implementatison below.
 static HEADER_LOOKUP_TABLE: [HeaderKind; 4] = [
@@ -44,25 +50,24 @@ impl HeaderKind {
         panic!("Header kind not found in lookup table.");
     }
 
-    fn from_int(val: u8) -> Result<HeaderKind> {
+    fn from_int(val: u8) -> Result<HeaderKind, HeaderDecodingError> {
         HEADER_LOOKUP_TABLE
             .get(val as usize)
             .map(|x| *x)
-            .ok_or_else(|| anyhow::anyhow!("{} is not a valid header kind", val))
+            .ok_or_else(|| HeaderDecodingError::InvalidHeaderKind(val))
     }
 }
 
 impl Header {
-    pub(crate) fn encode(&self, dest: &mut impl BufMut) -> Result<()> {
+    pub(crate) fn encode(&self, dest: &mut impl BufMut) {
         dest.put_u8(self.kind.to_int());
         dest.put_u8(self.namespace);
         dest.put_u16(self.id);
-        Ok(())
     }
 
-    pub(crate) fn decode(&self, source: &mut impl Buf) -> Result<Header> {
+    pub(crate) fn decode(&self, source: &mut impl Buf) -> Result<Header, HeaderDecodingError> {
         if (source.remaining() as u64) < HEADER_SIZE {
-            anyhow::bail!("Not enough bytes to decode the header");
+            return Err(HeaderDecodingError::NotEnoughData);
         }
 
         let kind = HeaderKind::from_int(source.get_u8())?;
@@ -89,7 +94,7 @@ mod tests {
         #[test]
         fn test_fuzz_encoding(header: Header) {
             let mut buf = vec![];
-            header.encode(&mut buf).expect("Should encode");
+            header.encode(&mut buf);
             let out = header.decode(&mut &buf[..]).expect("Should decode");
             assert_eq!(header, out);
         }

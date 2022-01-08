@@ -114,7 +114,6 @@ dependencies = [
 name = "ammo_framer"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "bytes",
  "derive_more",
  "log",
