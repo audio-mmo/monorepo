@@ -12,8 +12,10 @@
 //! out, and are responsible for decoding it, e.g. from protobuf.
 mod framer;
 mod header;
+mod message;
 mod parser;
 mod varint;
 
 pub use framer::*;
+pub use message::*;
 pub use parser::*;

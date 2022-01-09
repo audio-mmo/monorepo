@@ -4,7 +4,7 @@
 use bytes::{Buf, BufMut};
 
 /// Size of the header, excluding length.
-const HEADER_SIZE: u64 = 4;
+pub(crate) const HEADER_SIZE: u64 = 4;
 
 #[derive(Copy, Clone, Eq, Ord, PartialEq, PartialOrd, Debug)]
 #[cfg_attr(test, derive(proptest_derive::Arbitrary))]
@@ -25,7 +25,7 @@ pub(crate) enum HeaderKind {
 
 #[derive(Debug, derive_more::Display, thiserror::Error)]
 #[non_exhaustive]
-pub(crate) enum HeaderDecodingError {
+pub enum HeaderDecodingError {
     NotEnoughData,
     InvalidHeaderKind(u8),
 }
@@ -40,7 +40,7 @@ static HEADER_LOOKUP_TABLE: [HeaderKind; 4] = [
 ];
 
 impl HeaderKind {
-    fn to_int(&self) -> u8 {
+    fn as_int(&self) -> u8 {
         for (i, v) in HEADER_LOOKUP_TABLE.iter().enumerate() {
             if *v == *self {
                 return i as u8;
@@ -53,19 +53,19 @@ impl HeaderKind {
     fn from_int(val: u8) -> Result<HeaderKind, HeaderDecodingError> {
         HEADER_LOOKUP_TABLE
             .get(val as usize)
-            .map(|x| *x)
-            .ok_or_else(|| HeaderDecodingError::InvalidHeaderKind(val))
+            .copied()
+            .ok_or(HeaderDecodingError::InvalidHeaderKind(val))
     }
 }
 
 impl Header {
     pub(crate) fn encode(&self, dest: &mut impl BufMut) {
-        dest.put_u8(self.kind.to_int());
+        dest.put_u8(self.kind.as_int());
         dest.put_u8(self.namespace);
         dest.put_u16(self.id);
     }
 
-    pub(crate) fn decode(&self, source: &mut impl Buf) -> Result<Header, HeaderDecodingError> {
+    pub(crate) fn decode(source: &mut impl Buf) -> Result<Header, HeaderDecodingError> {
         if (source.remaining() as u64) < HEADER_SIZE {
             return Err(HeaderDecodingError::NotEnoughData);
         }
@@ -95,7 +95,7 @@ mod tests {
         fn test_fuzz_encoding(header: Header) {
             let mut buf = vec![];
             header.encode(&mut buf);
-            let out = header.decode(&mut &buf[..]).expect("Should decode");
+            let out = Header::decode(&mut &buf[..]).expect("Should decode");
             assert_eq!(header, out);
         }
     }

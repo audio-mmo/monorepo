@@ -4,7 +4,8 @@ use bytes::{Buf, BufMut};
 pub(crate) const MAX_BYTES: u64 = 10;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error, derive_more::Display)]
-pub(crate) enum VarintError {
+#[non_exhaustive]
+pub enum VarintError {
     /// The input buffer was empty.
     NoData,
 
