@@ -21,6 +21,7 @@ pub(crate) enum HeaderKind {
     Command,
     Event,
     Component,
+    VisibilitySet,
 }
 
 #[derive(Debug, derive_more::Display, thiserror::Error)]

@@ -7,6 +7,7 @@ pub enum MessageKind {
     Command,
     Event,
     Component,
+    VisibilitySet,
 }
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -29,6 +30,7 @@ impl From<MessageKind> for header::HeaderKind {
             MessageKind::Command => header::HeaderKind::Command,
             MessageKind::Event => header::HeaderKind::Event,
             MessageKind::Component => header::HeaderKind::Component,
+            MessageKind::VisibilitySet => header::HeaderKind::VisibilitySet,
         }
     }
 }
@@ -40,6 +42,7 @@ impl From<header::HeaderKind> for MessageKind {
             header::HeaderKind::Command => MessageKind::Command,
             header::HeaderKind::Event => MessageKind::Event,
             header::HeaderKind::Component => MessageKind::Component,
+            header::HeaderKind::VisibilitySet => MessageKind::VisibilitySet,
         }
     }
 }
