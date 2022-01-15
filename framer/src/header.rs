@@ -33,11 +33,12 @@ pub enum HeaderDecodingError {
 
 /// Used to convert header kinds to/from ints.  Must contain all header kinds.  This makes sure that we never
 /// accidentally mismatch the to_int and from_int implementatison below.
-static HEADER_LOOKUP_TABLE: [HeaderKind; 4] = [
+static HEADER_LOOKUP_TABLE: [HeaderKind; 5] = [
     HeaderKind::NotSimulation,
     HeaderKind::Command,
     HeaderKind::Event,
     HeaderKind::Component,
+    HeaderKind::VisibilitySet,
 ];
 
 impl HeaderKind {

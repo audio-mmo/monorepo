@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use bytes::Buf;
 
 use crate::header;
@@ -98,7 +100,7 @@ impl Parser {
                 id: header.id,
             },
             kind: header.kind.into(),
-            data: buf,
+            data: Cow::Borrowed(buf),
         };
 
         Ok(ParserOutcome::Message(message))

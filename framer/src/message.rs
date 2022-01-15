@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::header;
 
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -20,7 +22,7 @@ pub struct MessageIdentifier {
 pub struct Message<'a> {
     pub identifier: MessageIdentifier,
     pub kind: MessageKind,
-    pub data: &'a [u8],
+    pub data: Cow<'a, [u8]>,
 }
 
 impl From<MessageKind> for header::HeaderKind {
