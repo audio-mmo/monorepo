@@ -39,7 +39,7 @@ impl Framer {
             id: message.identifier.id,
         };
 
-        varint::encode_varint(message.len(), &mut self.buffer);
+        varint::encode_varint(message.len() + header::HEADER_SIZE, &mut self.buffer);
         header.encode(&mut self.buffer);
         self.buffer.put(&mut &*message.data);
     }

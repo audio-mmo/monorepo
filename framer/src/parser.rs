@@ -54,10 +54,33 @@ impl Parser {
     }
 
     /// Feed the parser with some bytes.
-    pub fn feed(&mut self, bytes: &mut impl Buf) -> Result<ParserOutcome, ParserError> {
+    pub fn feed(&mut self, bytes: &mut impl Buf) -> Result<(), ParserError> {
         use bytes::BufMut;
-
         self.buffer.put(bytes);
+
+        if let Some(l) = self.length_limit {
+            if !self.buffer.is_empty() {
+                let length_so_far = match varint::decode_varint(&mut &self.buffer[..]) {
+                    Ok(i) => i,
+                    Err(varint::VarintError::Incomplete(i)) => i,
+                    Err(e) => return Err(e.into()),
+                };
+
+                if length_so_far > l {
+                    return Err(ParserError::MessageTooLong);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// try to read a message, if possible.
+    pub fn read_message(&mut self) -> Result<ParserOutcome, ParserError> {
+        if self.buffer.is_empty() {
+            return Ok(ParserOutcome::MoreDataRequired(0));
+        }
+
         let mut buf = &self.buffer[..];
         let varint_res = varint::decode_varint(&mut buf);
         if let Err(varint::VarintError::Incomplete(val)) = varint_res {
@@ -100,31 +123,39 @@ impl Parser {
                 id: header.id,
             },
             kind: header.kind.into(),
-            data: Cow::Borrowed(buf),
+            data: Cow::Borrowed(&buf[..(length - header::HEADER_SIZE) as usize]),
         };
 
         Ok(ParserOutcome::Message(message))
     }
 
-    /// Drop the first message off the front of the parser.
-    ///
-    /// Errors if called while the parser contains an invalid message.
+    /// Roll forward past the first message in this parser, if possible.  Should only be called after read_message
+    /// returns a message.
     pub fn roll_forward(&mut self) -> Result<(), ParserError> {
-        let vlen;
-        let length;
-
-        {
-            let mut buf = &self.buffer[..];
-            length = varint::decode_varint(&mut buf)?;
-            // use the fact that decoding the varint moved the buffer forward to determine how long the varint was.
-            vlen = self.buffer.len() - buf.len();
-        }
-
-        let old_len = self.buffer.len();
-        (&mut self.buffer[..]).copy_within((vlen + length as usize)..old_len, 0);
-        self.buffer
-            .resize(self.buffer.len() - length as usize - vlen, 0);
+        let mut buf = &self.buffer[..];
+        let len = varint::decode_varint(&mut buf)?;
+        // Length of the varint.
+        let var_len = self.buffer.len() - buf.len();
+        let total_len = len as usize + var_len;
+        let buf_len = self.buffer.len();
+        self.buffer.copy_within(total_len..buf_len, 0);
+        self.buffer.resize(self.buffer.len() - total_len, 0);
         self.buffer.shrink_to(self.cap_limit);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_length_limit() {
+        let mut parser = Parser::new(Some(10), 1024);
+
+        // Our message: 11 bytes, header is NotSimulation id (0, 0),Rest of the data is just zeroed.
+        let data = vec![11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let err = parser.feed(&mut &data[..]).err().expect("should be error");
+        assert!(matches!(err, ParserError::MessageTooLong));
     }
 }
