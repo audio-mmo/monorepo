@@ -10,6 +10,7 @@ members = [
     "ecs_derive",
     "framer",
     "frontend",
+    "net",
     "nzslab",
     "physics",
     "protos",
