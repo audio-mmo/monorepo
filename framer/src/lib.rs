@@ -1,15 +1,12 @@
 //! This crate frames messages and parses framed messages.  To use, encode with a [Framer] and decode with a [Parser].
 //!
-//! This is a stateless network serializer/deserializer.  We support 4 message types:
+//! This is a stateless network serializer/deserializer.  We support a variety of different message types, though we
+//! don't put any particular meaning on the bytes in the message.  See [message::MessageKind] for the supported types
+//! and their documentation.
 //!
-//! - NotSimulation: things like login, logout, chat, etc.  Stuff that doesn't fall cleanly into one category and isn't
-//!   part of syncing the object model.
-//! - Component: a request to sync a component.
-//! - Command: a game-related command, e.g. "the player pressed a button".  usually client->server.
-//! - Event: "this happened", e.g. "damage" or whatever, usually server->client.
-//!
-//! This crate doesn't understand what the messages mean, just how to separate them into kinds.  You get a slice of u8
-//! out, and are responsible for decoding it, e.g. from protobuf.
+//! Each message also comes with a namespace and id pairing, which we use as a target to dispatch to a handler, e.g. the
+//! chat system or a specific component.  The handlers are responsible for actually parsing the payloads out.  The
+//! infrastructure for doing this is in the ammo_net crate.
 mod framer;
 mod header;
 mod message;

@@ -2,13 +2,23 @@ use std::borrow::Cow;
 
 use crate::header;
 
+/// Kinds of message we support.
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 pub enum MessageKind {
+    /// This message is headed to something outside the simulation, for example a chat subsystem.
     NotSimulation,
+
+    /// This message is a command, which is what the client sends to the server for actions.
     Command,
+
+    /// This message is an event, which is what the server sends to the client for things like one-off sounds and such.
     Event,
-    Component,
+
+    /// This message is a batch of components, which will be applied to the simulation.
+    Components,
+
+    /// This message specifies the visibility set, which is a list of all objects a given client can see.
     VisibilitySet,
 }
 
@@ -32,7 +42,7 @@ impl From<MessageKind> for header::HeaderKind {
             MessageKind::NotSimulation => header::HeaderKind::NotSimulation,
             MessageKind::Command => header::HeaderKind::Command,
             MessageKind::Event => header::HeaderKind::Event,
-            MessageKind::Component => header::HeaderKind::Component,
+            MessageKind::Components => header::HeaderKind::Component,
             MessageKind::VisibilitySet => header::HeaderKind::VisibilitySet,
         }
     }
@@ -44,7 +54,7 @@ impl From<header::HeaderKind> for MessageKind {
             header::HeaderKind::NotSimulation => MessageKind::NotSimulation,
             header::HeaderKind::Command => MessageKind::Command,
             header::HeaderKind::Event => MessageKind::Event,
-            header::HeaderKind::Component => MessageKind::Component,
+            header::HeaderKind::Component => MessageKind::Components,
             header::HeaderKind::VisibilitySet => MessageKind::VisibilitySet,
         }
     }

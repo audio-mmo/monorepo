@@ -8,10 +8,8 @@ use crate::varint;
 
 /// A parser parses frames.
 ///
-/// To use, call [Parser::feed] with some data, which will return a [ParserOutcome] (either a message or request for
-/// more data) or error out if it will no longer be possible to decode (because, e.g., we had a message longer than a
-/// length limit or invalid data).  Once you get and process a message, call [Parser::roll_forward], which will drop the
-/// message from the head of the parser's buffer, so that the next message may be returned.
+/// To use, call [Parser::feed] with some data, then repeatedly call [Parser::read_message] and [Parser::roll_forward]
+/// in a loop until read_message asks for more data to get messages out.
 ///
 /// It is safe to feed this parser with more data than is in a single message; the next messages will be picked up next
 /// time.  Note, however, that this is optimized for small reads: as messages are extracted we copy data to the front of

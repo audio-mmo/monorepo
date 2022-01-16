@@ -6,7 +6,7 @@ use crate::varint;
 ///
 /// To use, call [Framer::encode_message] repeatedly, then [Framer::get_data], then [Framer::clear].  The general
 /// pattern here is to build up the list of frames to send in a batch, then to read the data out and send them over the
-/// network before repeating.
+/// network.  The batch interface allows for ammo_net to perform larger writes.
 pub struct Framer {
     cap_limit: usize,
     buffer: Vec<u8>,

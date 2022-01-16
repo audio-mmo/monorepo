@@ -3,6 +3,7 @@ use bytes::{Buf, BufMut};
 /// Number of bytes to completely encode u64.
 pub(crate) const MAX_BYTES: u64 = 10;
 
+/// An error which represents a failure to decode a varint.
 #[derive(Debug, Eq, PartialEq, thiserror::Error, derive_more::Display)]
 #[non_exhaustive]
 pub enum VarintError {
