@@ -1,4 +1,4 @@
-//?! The Component trait.
+//! The Component trait.
 //!
 //! The Component trait defines a component, under the standard ECS definition.
 //! Uniquely to us, components must also define a unique string namespace/pair
@@ -31,7 +31,7 @@ pub trait Component: Serialize + DeserializeOwned + Clone + 'static {
     /// "position")`.  The string namespace `"ammo"` is reserved.
     ///
     /// If two components with the same namespace/name pairing are registered
-    /// with the ECS, a panic results because this is programmer error.
+    /// with the ECS, a panic results because this is a programmer error.
     fn get_string_id() -> StringComponentId
     where
         Self: Sized;

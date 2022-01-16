@@ -1,6 +1,3 @@
-extern crate ammo_ecs_derive;
-
-pub mod component;
 pub mod components;
 pub mod frozen_map;
 pub mod id_factory;

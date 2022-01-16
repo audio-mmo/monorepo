@@ -12,8 +12,8 @@
 //! Rayon.
 //!
 //! Worldlets are build from a [WorldletTemplate], which is where systems, etc. are actually registered.
-use crate::component::Component;
 use crate::store_map::{StoreMap, StoreMapFactory, StoreMapFactoryBuilder, StoreRef, StoreRefMut};
+use ammo_ecs_core::Component;
 
 pub struct Worldlet {
     stores: StoreMap,

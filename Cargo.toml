@@ -6,6 +6,7 @@ members = [
     "client",
     "datastore",
     "ecs",
+    "ecs_core",
     "ecs_derive",
     "framer",
     "frontend",

@@ -16,9 +16,9 @@ use std::any::{Any, TypeId};
 
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 
-use crate::component::Component;
 use crate::frozen_map::{FrozenMap, FrozenMapBuilder};
 use crate::store::Store;
+use ammo_ecs_core::Component;
 
 /// A mutable borrow of a store.
 pub struct StoreRef<'a, T>(AtomicRef<'a, Store<T>>);

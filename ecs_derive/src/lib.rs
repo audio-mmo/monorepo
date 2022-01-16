@@ -48,13 +48,13 @@ pub fn derive_component(input: TokenStream) -> TokenStream {
     let generics = &*generics;
 
     let out = quote! {
-        impl<#generics> ammo_ecs_macro_reexport::component::Component for #ident<#generics> {
-            fn get_string_id() -> ammo_ecs_macro_reexport::component::StringComponentId {
-                ammo_ecs_macro_reexport::component::StringComponentId { namespace: #namespace, id: #id }
+        impl<#generics> ammo_ecs_core::Component for #ident<#generics> {
+            fn get_string_id() -> ammo_ecs_core::component::StringComponentId {
+                ammo_ecs_core::StringComponentId { namespace: #namespace, id: #id }
             }
 
-            fn get_int_id() -> ammo_ecs_macro_reexport::component::IntComponentId {
-                ammo_ecs_macro_reexport::component::IntComponentId {
+            fn get_int_id() -> ammo_ecs_core::component::IntComponentId {
+                ammo_ecs_core::component::IntComponentId {
                     namespace: unsafe { std::num::NonZeroU16::new_unchecked(#int_namespace) },
                     id: #int_id,
                 }

@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 ahash = "0.7.6"
+ammo_ecs_core = { path = "../ecs_core" }
 ammo_ecs_derive = { path = "../ecs_derive" }
 ammo_physics = { path = "../physics" }
 anyhow = "1.0.51"
