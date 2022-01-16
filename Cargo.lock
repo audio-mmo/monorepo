@@ -106,7 +106,6 @@ dependencies = [
 name = "ammo_ecs_core"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "derive_more",
  "serde",
 ]
@@ -126,7 +125,6 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "derive_more",
- "log",
  "proptest",
  "proptest-derive",
  "thiserror",
