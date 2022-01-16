@@ -367,23 +367,22 @@ mod tests {
                         Ok(())
                     })?;
 
+                    let braced_table = format!("{{{{ {table} }}}}");
                     // We'll build the table in 2 migrations: one to create some of the columns, and one that uses alter
                     // column for the rest.
                     let m1 = format!(
                         r#"
-                        CREATE TABLE {table} (
+                        CREATE TABLE {braced_table} (
                             primary_key INTEGER PRIMARY KEY,
                             string_col TEXT NOT NULL
                         );
-                    "#,
-                        table = format!("{{{{ {} }}}}", table),
+                    "#
                     );
                     let m2 = format!(
                         r#"
-                        ALTER TABLE {table} ADD COLUMN f64_col REAL;
-                        ALTER TABLE {table} ADD COLUMN json TEXT NOT NULL;
-                    "#,
-                        table = format!("{{{{ {} }}}}", table),
+                        ALTER TABLE {braced_table} ADD COLUMN f64_col REAL;
+                        ALTER TABLE {braced_table} ADD COLUMN json TEXT NOT NULL;
+                    "#
                     );
                     b.add_sql_migration(format!("m1.{}", table), m1)?;
                     b.add_sql_migration(format!("m2.{}", table), m2)?;
