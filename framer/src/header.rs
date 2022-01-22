@@ -22,6 +22,8 @@ pub(crate) enum HeaderKind {
     Event,
     Component,
     VisibilitySet,
+    ClientTick,
+    ServerTick,
 }
 
 #[derive(Debug, derive_more::Display, thiserror::Error)]
@@ -33,12 +35,14 @@ pub enum HeaderDecodingError {
 
 /// Used to convert header kinds to/from ints.  Must contain all header kinds.  This makes sure that we never
 /// accidentally mismatch the to_int and from_int implementatison below.
-static HEADER_LOOKUP_TABLE: [HeaderKind; 5] = [
+static HEADER_LOOKUP_TABLE: [HeaderKind; 7] = [
     HeaderKind::NotSimulation,
     HeaderKind::Command,
     HeaderKind::Event,
     HeaderKind::Component,
     HeaderKind::VisibilitySet,
+    HeaderKind::ClientTick,
+    HeaderKind::ServerTick,
 ];
 
 impl HeaderKind {

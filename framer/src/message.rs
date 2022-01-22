@@ -20,6 +20,15 @@ pub enum MessageKind {
 
     /// This message specifies the visibility set, which is a list of all objects a given client can see.
     VisibilitySet,
+
+    /// A client tick has ended.
+    ///
+    /// We distinguish the tick kinds because this allows increased genericity, and the ability to e.g. tell if client
+    /// messages are being sent by the server.
+    ClientTick,
+
+    /// A server tick has ended.
+    ServerTick,
 }
 
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -44,6 +53,8 @@ impl From<MessageKind> for header::HeaderKind {
             MessageKind::Event => header::HeaderKind::Event,
             MessageKind::Components => header::HeaderKind::Component,
             MessageKind::VisibilitySet => header::HeaderKind::VisibilitySet,
+            MessageKind::ClientTick => header::HeaderKind::ClientTick,
+            MessageKind::ServerTick => header::HeaderKind::ServerTick,
         }
     }
 }
@@ -56,6 +67,8 @@ impl From<header::HeaderKind> for MessageKind {
             header::HeaderKind::Event => MessageKind::Event,
             header::HeaderKind::Component => MessageKind::Components,
             header::HeaderKind::VisibilitySet => MessageKind::VisibilitySet,
+            header::HeaderKind::ClientTick => MessageKind::ClientTick,
+            header::HeaderKind::ServerTick => MessageKind::ServerTick,
         }
     }
 }
