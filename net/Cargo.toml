@@ -10,4 +10,5 @@ ammo_framer = { path = "../framer" }
 anyhow = "1.0.53"
 derivative = "2.2.0"
 derive_builder = "0.10.2"
+log = "0.4.14"
 tokio = { version = "1.15.0", features = ["full"] }

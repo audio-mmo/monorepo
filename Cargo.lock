@@ -149,6 +149,7 @@ dependencies = [
  "anyhow",
  "derivative",
  "derive_builder",
+ "log",
  "tokio",
 ]
 

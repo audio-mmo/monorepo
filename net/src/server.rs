@@ -49,7 +49,11 @@ impl Server {
                 self.authenticator.clone(),
                 stream,
             );
-            conn.spawn_consume(Some(permit))?;
+            tokio::spawn(async {
+                if let Err(e) = conn.task(Some(permit)).await {
+                    log::warn!("Error handling connection: {:?}", e);
+                }
+            });
         }
     }
 }
