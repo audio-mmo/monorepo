@@ -10,8 +10,7 @@ use crate::network_connection::NetworkConnection;
 
 #[derive(Clone, Debug, derive_builder::Builder)]
 pub struct ServerConfig {
-    pub interface: std::net::SocketAddr,
-    pub port: usize,
+    pub local_addr: std::net::SocketAddr,
 
     /// Maximum number of connections which may connect to the server at any one time.
     ///
@@ -29,26 +28,27 @@ pub struct Server {
     pub(crate) pending_connections_receiver:
         tokio::sync::Mutex<tokio::sync::mpsc::Receiver<Arc<dyn Connection>>>,
     pub(crate) pending_connections_sender: tokio::sync::mpsc::Sender<Arc<dyn Connection>>,
+    pub(crate) listener: tokio::net::TcpListener,
 }
 
 impl Server {
-    pub fn new(config: ServerConfig) -> Arc<Server> {
+    pub async fn new(config: ServerConfig) -> Result<Arc<Server>> {
         let (pending_connections_sender, pending_connections_receiver) =
             tokio::sync::mpsc::channel(config.max_connections);
-        Arc::new(Server {
+        Ok(Arc::new(Server {
+            listener: tokio::net::TcpListener::bind(config.local_addr).await?,
             conn_sem: Arc::new(Semaphore::new(config.max_connections)),
             config,
             pending_connections_sender,
             pending_connections_receiver: tokio::sync::Mutex::new(pending_connections_receiver),
-        })
+        }))
     }
 
     /// Drive the server's listening loop on a  Tokio runtime.
     pub async fn listening_loop(self: Arc<Self>) -> Result<()> {
-        let listener = TcpListener::bind(self.config.interface).await?;
         loop {
             let permit = self.conn_sem.clone().acquire_owned().await?;
-            let (stream, _) = listener.accept().await?;
+            let (stream, _) = self.listener.accept().await?;
             let conn = NetworkConnection::new(self.config.connection_config.clone());
             let sender = self.pending_connections_sender.clone();
             tokio::spawn(async {
