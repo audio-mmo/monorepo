@@ -21,6 +21,10 @@ const WRITE_BUF_SIZE: usize = 8192;
 #[derive(derivative::Derivative, Debug, Clone)]
 #[derivative(Default)]
 pub struct NetworkConnectionConfig {
+    /// If true, don't consider the connection connected until the first message is available.
+    #[derivative(Default(value = "true"))]
+    expect_first_message: bool,
+
     /// Maximum length of the first message.  This is usually used for authentication/handshaking.
     #[derivative(Default(value = "8192"))]
     first_message_max_len: usize,
@@ -122,29 +126,31 @@ impl NetworkConnection {
         let first_msg_deadline = tokio::time::sleep(self.config.first_message_timeout);
         tokio::pin!(first_msg_deadline);
 
-        loop {
-            tokio::select! {
-                maybe_read = reader.read(&mut read_buf[..]) => {
-                    let read = maybe_read?;
-                    if read == 0 {
-                        return Ok(());
+        if self.config.expect_first_message {
+            loop {
+                tokio::select! {
+                    maybe_read = reader.read(&mut read_buf[..]) => {
+                        let read = maybe_read?;
+                        if read == 0 {
+                            return Ok(());
+                        }
+
+                        self.parser.lock().unwrap().feed(&mut &read_buf[..read])?;
+                    },
+                    _ = &mut first_msg_deadline => {
+                        anyhow::bail!("Took too long to read the first message");
                     }
-
-                    self.parser.lock().unwrap().feed(&mut &read_buf[..read])?;
-                },
-                _ = &mut first_msg_deadline => {
-                    anyhow::bail!("Took too long to read the first message");
                 }
-            }
 
-            let parser = self.parser.lock().unwrap();
-            if let ParserOutcome::Message(_) = parser.read_message()? {
-                // We have at least one message.
-                break;
-            }
+                let parser = self.parser.lock().unwrap();
+                if let ParserOutcome::Message(_) = parser.read_message()? {
+                    // We have at least one message.
+                    break;
+                }
 
-            if parser.contained_bytes() > self.config.first_message_max_len {
-                anyhow::bail!("First message too long");
+                if parser.contained_bytes() > self.config.first_message_max_len {
+                    anyhow::bail!("First message too long");
+                }
             }
         }
 
