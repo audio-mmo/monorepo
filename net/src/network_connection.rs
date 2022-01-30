@@ -163,7 +163,8 @@ impl NetworkConnection {
                 maybe_wrote = tokio::time::timeout(self.config.write_timeout, writer.write(&write_buf[write_buf_cursor..write_buf_size]))  => {
                     let wrote = maybe_wrote??;
                     if wrote == 0 {
-                        // EOF; nothing left to do.
+                        // EOF, which means that the other side closed the connection.  In this case, don't try to send
+                        // the remaining bytes; there's nothing there to listen for them.
                         return Ok(());
                     }
 
@@ -178,7 +179,8 @@ impl NetworkConnection {
                     message_deadline = Instant::now() + self.config.max_message_interval;
                 },
                 _ = self.close_notifier.notified() => {
-                    return Ok(());
+                    // We still want to try to drain the framer.
+                    break;
                 }
             }
 
@@ -187,6 +189,17 @@ impl NetworkConnection {
                 anyhow::bail!("Too many outstanding bytes");
             }
         }
+
+        // Mark this connection as no longer connected. This ensures that no more messages can be sent and as a
+        // consequence nothing blocks on the mutex anymore.
+        self.connected.store(false, Ordering::Relaxed);
+
+        // We must steal the framer's data because we can't hold the mutex past an await point.
+        let framer = self.framer.lock().unwrap().steal();
+        writer
+            .write_all(framer.read_front(framer.pending_bytes()))
+            .await?;
+        Ok(())
     }
 }
 

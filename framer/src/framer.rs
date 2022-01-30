@@ -92,6 +92,22 @@ impl Framer {
     pub fn pending_bytes(&self) -> usize {
         self.buffer.len() - self.cursor
     }
+
+    /// Steal this framer's data into a new framer, then reset this framer to be empty.
+    ///
+    /// This is useful when shutting down connections in the ammo_net crate, though there is likely to be a better
+    /// design.
+    pub fn steal(&mut self) -> Framer {
+        let mut buffer = vec![];
+        std::mem::swap(&mut self.buffer, &mut buffer);
+        let ret = Framer {
+            buffer,
+            cursor: self.cursor,
+            min_advance_by: self.min_advance_by,
+        };
+        *self = Framer::new();
+        ret
+    }
 }
 
 impl Default for Framer {
