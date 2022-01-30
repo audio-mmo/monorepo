@@ -34,6 +34,9 @@ pub struct NetworkConnectionConfig {
     #[derivative(Default(value = "1<<20"))]
     max_unsent_bytes: usize,
 
+    #[derivative(Default(value = "1<<30"))]
+    max_unparsed_bytes: usize,
+
     /// This interval specifies the maximum amount of time we are willing to go without seeing a message before giving
     /// up and shutting down.
     ///
@@ -145,8 +148,6 @@ impl NetworkConnection {
             }
         }
 
-        // We need to start off by filling the write buffer ourselves.
-
         let mut message_deadline = Instant::now() + self.config.max_message_interval;
         let mut decoded_messages = self.decoded_messages.load(Ordering::Relaxed);
 
@@ -159,12 +160,17 @@ impl NetworkConnection {
                 write_buf_size = front.len();
             }
 
+            let can_read =
+                self.parser.lock().unwrap().contained_bytes() < self.config.max_unparsed_bytes;
+            let can_write = write_buf_cursor < write_buf_size;
+
             tokio::select! {
-                maybe_got = reader.read(&mut read_buf[..]) => {
+                maybe_got = reader.read(&mut read_buf[..]), if can_read  => {
                     let got = maybe_got?;
                     self.parser.lock().unwrap().feed(&mut &read_buf[..got])?;
                 },
-                maybe_wrote = tokio::time::timeout(self.config.write_timeout, writer.write(&write_buf[write_buf_cursor..write_buf_size]))  => {
+                maybe_wrote = (tokio::time::timeout(self.config.write_timeout, writer.write(&write_buf[write_buf_cursor..write_buf_size]))),
+                    if can_write => {
                     let wrote = maybe_wrote??;
                     if wrote == 0 {
                         // EOF, which means that the other side closed the connection.  In this case, don't try to send

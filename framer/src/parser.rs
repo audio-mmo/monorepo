@@ -141,6 +141,13 @@ impl Parser {
         self.buffer.shrink_to(self.cap_limit);
         Ok(())
     }
+
+    /// Get the number of bytes in this parser.
+    ///
+    /// Decreases when [Parser::roll_forward] is called.
+    pub fn contained_bytes(&self) -> usize {
+        self.buffer.len()
+    }
 }
 
 #[cfg(test)]
