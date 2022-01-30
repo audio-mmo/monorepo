@@ -152,8 +152,11 @@ impl NetworkConnection {
             }
         }
 
-        let mut message_deadline = Instant::now() + self.config.max_message_interval;
         let mut decoded_messages = self.decoded_messages.load(Ordering::Relaxed);
+        let mut message_deadline_interval = tokio::time::interval(self.config.max_message_interval);
+        message_deadline_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        // The first tick completes immediately.
+        message_deadline_interval.tick().await;
 
         loop {
             if write_buf_cursor == write_buf_size {
@@ -184,13 +187,12 @@ impl NetworkConnection {
 
                     write_buf_cursor += wrote;
                 },
-                _ = tokio::time::sleep_until(message_deadline) => {
+                _ = message_deadline_interval.tick() => {
                     let new_decoded_messages = self.decoded_messages.load(Ordering::Relaxed);
                     if new_decoded_messages == decoded_messages {
                         anyhow::bail!("Received messages too slowly");
                     }
                     decoded_messages = new_decoded_messages;
-                    message_deadline = Instant::now() + self.config.max_message_interval;
                 },
                 _ = self.close_notifier.notified() => {
                     // We still want to try to drain the framer.
