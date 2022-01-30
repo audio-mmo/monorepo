@@ -96,9 +96,10 @@ impl NetworkConnection {
         self,
         transport: impl AsyncRead + AsyncWrite,
         permit: Option<tokio::sync::OwnedSemaphorePermit>,
+        return_channel: tokio::sync::mpsc::Sender<Arc<dyn Connection>>,
     ) -> Result<()> {
         let aself = Arc::new(self);
-        let res = aself.task_inner(transport).await;
+        let res = aself.task_inner(transport, return_channel).await;
         aself.connected.store(false, Ordering::Relaxed);
 
         // Let's be explicit about this, for clarity.
@@ -107,7 +108,11 @@ impl NetworkConnection {
         res
     }
 
-    async fn task_inner(self: &Arc<Self>, transport: impl AsyncRead + AsyncWrite) -> Result<()> {
+    async fn task_inner(
+        self: &Arc<Self>,
+        transport: impl AsyncRead + AsyncWrite,
+        return_channel: tokio::sync::mpsc::Sender<Arc<dyn Connection>>,
+    ) -> Result<()> {
         let mut read_buf: [u8; READ_BUF_SIZE] = [0; READ_BUF_SIZE];
         let mut write_buf: [u8; WRITE_BUF_SIZE] = [0; WRITE_BUF_SIZE];
         let mut write_buf_size = 0;
@@ -142,6 +147,11 @@ impl NetworkConnection {
                 anyhow::bail!("First message too long");
             }
         }
+
+        let handle = Arc::new(NetworkConnectionHandle(Arc::downgrade(self)));
+        return_channel.send(handle).await.map_err(|_| {
+            anyhow::anyhow!("Unable to send cionnection handle because the faar side hung up")
+        })?;
 
         let mut decoded_messages = self.decoded_messages.load(Ordering::Relaxed);
         let mut message_deadline_interval = tokio::time::interval(self.config.max_message_interval);
