@@ -43,7 +43,7 @@ impl Server {
         })
     }
 
-    /// Drive the server's listening loop ona  Tokio runtime.
+    /// Drive the server's listening loop on a  Tokio runtime.
     pub async fn listening_loop(self: Arc<Self>) -> Result<()> {
         let listener = TcpListener::bind(self.config.interface).await?;
         loop {
