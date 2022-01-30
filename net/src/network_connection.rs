@@ -52,6 +52,10 @@ pub struct NetworkConnectionConfig {
     /// Timeout on individual write calls.
     #[derivative(Default(value = "Duration::from_millis(500)"))]
     write_timeout: Duration,
+
+    /// How long the connection is allowed to shut down for before we give up sending any outstanding data.
+    #[derivative(Default(value = "Duration::from_secs(5)"))]
+    shutdown_timeout: Duration,
 }
 
 pub(crate) struct NetworkConnection {
@@ -196,9 +200,19 @@ impl NetworkConnection {
 
         // We must steal the framer's data because we can't hold the mutex past an await point.
         let framer = self.framer.lock().unwrap().steal();
-        writer
-            .write_all(framer.read_front(framer.pending_bytes()))
-            .await?;
+        match tokio::time::timeout(
+            self.config.shutdown_timeout,
+            writer.write_all(framer.read_front(framer.pending_bytes())),
+        )
+        .await
+        {
+            Err(_) => {
+                // Not an error if we timed out.
+                return Ok(());
+            }
+            Ok(x) => x?,
+        }
+
         Ok(())
     }
 }
