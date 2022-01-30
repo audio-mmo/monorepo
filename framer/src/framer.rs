@@ -2,11 +2,6 @@ use crate::header;
 use crate::message::Message;
 use crate::varint;
 
-/// A framer writes frames to an internal buffer, then hands them out on request.
-///
-/// To use, call [Framer::encode_message] repeatedly, then [Framer::get_data], then [Framer::clear].  The general
-/// pattern here is to build up the list of frames to send in a batch, then to read the data out and send them over the
-/// network.  The batch interface allows for ammo_net to perform larger writes.
 pub struct Framer {
     buffer: Vec<u8>,
 }
