@@ -250,6 +250,21 @@ impl NetworkConnectionHandle {
 
         cb(&*strong)
     }
+
+    pub async fn connect(
+        config: NetworkConnectionConfig,
+        addr: impl tokio::net::ToSocketAddrs,
+    ) -> Result<Arc<dyn Connection>> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
+        let stream = tokio::net::TcpStream::connect(addr).await?;
+        let conn = NetworkConnection::new(config);
+        tokio::spawn(async {
+            let _ = conn.task(stream, None, sender).await.map_err(|e| {
+                log::warn!("Socket error: {:?}", e);
+            });
+        });
+        Ok(receiver.recv().await.ok_or_else(|| anyhow::anyhow!("Unable to establish connection because the connection failed to send a handle back"))?)
+    }
 }
 
 impl Connection for NetworkConnectionHandle {
