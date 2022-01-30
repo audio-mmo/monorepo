@@ -132,9 +132,14 @@ impl NetworkConnection {
                 }
             }
 
-            if let ParserOutcome::Message(_) = self.parser.lock().unwrap().read_message()? {
+            let parser = self.parser.lock().unwrap();
+            if let ParserOutcome::Message(_) = parser.read_message()? {
                 // We have at least one message.
                 break;
+            }
+
+            if parser.contained_bytes() > self.config.first_message_max_len {
+                anyhow::bail!("First message too long");
             }
         }
 

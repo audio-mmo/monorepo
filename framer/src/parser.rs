@@ -74,7 +74,7 @@ impl Parser {
     }
 
     /// try to read a message, if possible.
-    pub fn read_message(&mut self) -> Result<ParserOutcome, ParserError> {
+    pub fn read_message(&self) -> Result<ParserOutcome, ParserError> {
         if self.buffer.is_empty() {
             return Ok(ParserOutcome::MoreDataRequired(0));
         }
