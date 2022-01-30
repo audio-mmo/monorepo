@@ -88,6 +88,10 @@ impl Framer {
         self.buffer.resize(remaining, 0);
         self.cursor = 0;
     }
+
+    pub fn pending_bytes(&self) -> usize {
+        self.buffer.len() - self.cursor
+    }
 }
 
 impl Default for Framer {

@@ -181,6 +181,11 @@ impl NetworkConnection {
                     return Ok(());
                 }
             }
+
+            // Check this down here.  We want at least one read to be able to go through.
+            if self.framer.lock().unwrap().pending_bytes() > self.config.max_unsent_bytes {
+                anyhow::bail!("Too many outstanding bytes");
+            }
         }
     }
 }
