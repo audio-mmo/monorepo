@@ -5,7 +5,6 @@ use anyhow::Result;
 use tokio::net::TcpListener;
 use tokio::sync::{mpsc::UnboundedReceiver, Semaphore};
 
-use crate::authentication::*;
 use crate::network_connection::NetworkConnection;
 
 #[derive(Clone, Debug, derive_builder::Builder)]
@@ -26,14 +25,12 @@ pub struct ServerConfig {
 pub struct Server {
     pub(crate) conn_sem: Arc<Semaphore>,
     pub(crate) config: ServerConfig,
-    pub(crate) authenticator: Arc<dyn Authenticator>,
 }
 
 impl Server {
-    pub fn new<Auth: Authenticator>(config: ServerConfig, authenticator: Auth) -> Arc<Server> {
+    pub fn new(config: ServerConfig) -> Arc<Server> {
         Arc::new(Server {
             conn_sem: Arc::new(Semaphore::new(config.max_connections)),
-            authenticator: Arc::new(authenticator),
             config,
         })
     }
@@ -44,10 +41,7 @@ impl Server {
         loop {
             let permit = self.conn_sem.clone().acquire_owned().await?;
             let (stream, _) = listener.accept().await?;
-            let conn = NetworkConnection::new(
-                self.config.connection_config.clone(),
-                Some(self.authenticator.clone()),
-            );
+            let conn = NetworkConnection::new(self.config.connection_config.clone());
             tokio::spawn(async {
                 if let Err(e) = conn.task(stream, Some(permit)).await {
                     log::warn!("Error handling connection: {:?}", e);

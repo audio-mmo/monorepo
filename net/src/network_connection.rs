@@ -12,7 +12,6 @@ use tokio::time::Instant;
 
 use ammo_framer::{Framer, Message, Parser, ParserOutcome};
 
-use crate::authentication::*;
 use crate::connection::*;
 
 const PARSER_CAP: usize = 8192;
@@ -22,12 +21,6 @@ const WRITE_BUF_SIZE: usize = 8192;
 #[derive(derivative::Derivative, Debug, Clone)]
 #[derivative(Default)]
 pub struct NetworkConnectionConfig {
-    #[derivative(Default(value = "8192"))]
-    max_auth_message_size: usize,
-
-    #[derivative(Default(value = "Duration::from_millis(500)"))]
-    auth_message_timeout: Duration,
-
     /// Maximum number of pendin bytes which may be unsent before a connection should be shut down.
     ///
     /// When exceeded, the connection ungracefully closes.
@@ -63,7 +56,6 @@ pub struct NetworkConnectionConfig {
 
 pub(crate) struct NetworkConnection {
     config: NetworkConnectionConfig,
-    authenticator: Option<Arc<dyn Authenticator>>,
     close_notifier: Notify,
     framer: Mutex<Framer>,
     parser: Mutex<Parser>,
@@ -81,12 +73,8 @@ pub(crate) struct NetworkConnection {
 struct NetworkConnectionHandle(Weak<NetworkConnection>);
 
 impl NetworkConnection {
-    pub(crate) fn new(
-        config: NetworkConnectionConfig,
-        authenticator: Option<Arc<dyn Authenticator>>,
-    ) -> NetworkConnection {
+    pub(crate) fn new(config: NetworkConnectionConfig) -> NetworkConnection {
         NetworkConnection {
-            authenticator,
             close_notifier: Notify::new(),
             framer: Mutex::new(Framer::new()),
             parser: Mutex::new(Parser::new(config.max_incoming_message_length, PARSER_CAP)),
@@ -118,39 +106,6 @@ impl NetworkConnection {
         let mut write_buf_cursor = 0;
 
         let (mut reader, mut writer) = tokio::io::split(transport);
-        if let Some(authenticator) = self.authenticator.as_ref() {
-            let auth_deadline = Instant::now() + self.config.auth_message_timeout;
-
-            let deadline_fut = tokio::time::sleep_until(auth_deadline);
-            tokio::pin!(deadline_fut);
-
-            let mut auth_bytes = 0;
-
-            while auth_bytes < self.config.max_auth_message_size {
-                let can_read = read_buf
-                    .len()
-                    .min(self.config.max_auth_message_size - auth_bytes);
-                let buf_slice = &mut read_buf[0..can_read];
-                tokio::select! {
-                    maybe_got = reader.read(buf_slice) => {
-                        let got = maybe_got?;
-                        auth_bytes += got;
-                        let mut parser = self.parser.lock().unwrap();
-                        parser.feed(&mut &buf_slice[..got])?;
-                        if let ParserOutcome::Message(m) = parser.read_message()? {
-                            self.connected.store(true, Ordering::Relaxed);
-                            let handle = Arc::new(NetworkConnectionHandle(Arc::downgrade(self)));
-                            authenticator.authenticate(&m, handle)?;
-                            parser.roll_forward()?;
-
-                        }
-                    },
-                    _ = &mut deadline_fut => {
-                        anyhow::bail!("Timeout waiting for auth message");
-                    },
-                }
-            }
-        }
 
         let mut decoded_messages = self.decoded_messages.load(Ordering::Relaxed);
         let mut message_deadline_interval = tokio::time::interval(self.config.max_message_interval);
