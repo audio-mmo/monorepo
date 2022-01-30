@@ -10,17 +10,17 @@ use crate::network_connection::NetworkConnection;
 
 #[derive(Clone, Debug, derive_builder::Builder)]
 pub struct ServerConfig {
-    interface: std::net::SocketAddr,
-    port: usize,
+    pub interface: std::net::SocketAddr,
+    pub port: usize,
 
     /// Maximum number of connections which may connect to the server at any one time.
     ///
     /// We start refusing connections if this many are open.
     #[builder(default = "512")]
-    max_connections: usize,
+    pub max_connections: usize,
 
     #[builder(default = "Default::default()")]
-    connection_config: crate::network_connection::NetworkConnectionConfig,
+    pub connection_config: crate::network_connection::NetworkConnectionConfig,
 }
 
 pub struct Server {

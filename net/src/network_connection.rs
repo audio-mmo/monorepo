@@ -23,24 +23,24 @@ const WRITE_BUF_SIZE: usize = 8192;
 pub struct NetworkConnectionConfig {
     /// If true, don't consider the connection connected until the first message is available.
     #[derivative(Default(value = "true"))]
-    expect_first_message: bool,
+    pub expect_first_message: bool,
 
     /// Maximum length of the first message.  This is usually used for authentication/handshaking.
     #[derivative(Default(value = "8192"))]
-    first_message_max_len: usize,
+    pub first_message_max_len: usize,
 
     /// Timeout within which we must receive the first message.
     #[derivative(Default(value = "Duration::from_secs(1)"))]
-    first_message_timeout: Duration,
+    pub first_message_timeout: Duration,
 
     /// Maximum number of pendin bytes which may be unsent before a connection should be shut down.
     ///
     /// When exceeded, the connection ungracefully closes.
     #[derivative(Default(value = "1<<20"))]
-    max_unsent_bytes: usize,
+    pub max_unsent_bytes: usize,
 
     #[derivative(Default(value = "1<<30"))]
-    max_unparsed_bytes: usize,
+    pub max_unparsed_bytes: usize,
 
     /// This interval specifies the maximum amount of time we are willing to go without seeing a message before giving
     /// up and shutting down.
@@ -52,18 +52,18 @@ pub struct NetworkConnectionConfig {
     /// The implementation of this relies on the consumer of the connection to read messages promptly: we detect that we
     /// had a complete message using the last time a message was decoded.
     #[derivative(Default(value = "Duration::from_secs(1)"))]
-    max_message_interval: Duration,
+    pub max_message_interval: Duration,
 
     /// Max length of an incoming message.
-    max_incoming_message_length: Option<u64>,
+    pub max_incoming_message_length: Option<u64>,
 
     /// Timeout on individual write calls.
     #[derivative(Default(value = "Duration::from_millis(500)"))]
-    write_timeout: Duration,
+    pub write_timeout: Duration,
 
     /// How long the connection is allowed to shut down for before we give up sending any outstanding data.
     #[derivative(Default(value = "Duration::from_secs(5)"))]
-    shutdown_timeout: Duration,
+    pub shutdown_timeout: Duration,
 }
 
 pub(crate) struct NetworkConnection {
