@@ -18,32 +18,9 @@ pub struct Client {
     main_thread: MainThreadHandle,
 }
 
-fn setup_logging() {
-    static ONCE: std::sync::Once = std::sync::Once::new();
-
-    ONCE.call_once(|| {
-        env_logger::builder()
-            .format(|buf, record| {
-                use std::io::Write;
-
-                let now = time::OffsetDateTime::now_utc();
-
-                writeln!(
-                    buf,
-                    "{} {} time={} target={}",
-                    record.level(),
-                    record.args(),
-                    now,
-                    record.target()
-                )
-            })
-            .init();
-    });
-}
-
 impl Client {
     pub fn new() -> Result<Self> {
-        setup_logging();
+        ammo_logging::log_to_stdout();
 
         Ok(Client {
             main_thread: crate::main_thread::spawn_main_thread()?,
