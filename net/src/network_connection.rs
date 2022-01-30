@@ -56,7 +56,7 @@ pub struct NetworkConnectionConfig {
 
 pub(crate) struct NetworkConnection {
     config: NetworkConnectionConfig,
-    authenticator: Arc<dyn Authenticator>,
+    authenticator: Option<Arc<dyn Authenticator>>,
     close_notifier: Notify,
     framer: Mutex<Framer>,
     parser: Mutex<Parser>,
@@ -64,7 +64,8 @@ pub(crate) struct NetworkConnection {
     /// Number of messages decoded from this connection so far.
     decoded_messages: AtomicU64,
 
-    /// True after successful authentication; false if the connection shuts down for any reason.
+    /// True after we have the authentication message; false if the connection's task ends, whether successfully or
+    /// otherwise.
     connected: AtomicBool,
 }
 
@@ -75,7 +76,7 @@ struct NetworkConnectionHandle(Weak<NetworkConnection>);
 impl NetworkConnection {
     pub(crate) fn new(
         config: NetworkConnectionConfig,
-        authenticator: Arc<dyn Authenticator>,
+        authenticator: Option<Arc<dyn Authenticator>>,
     ) -> NetworkConnection {
         NetworkConnection {
             authenticator,
@@ -110,32 +111,33 @@ impl NetworkConnection {
         let mut write_buf_cursor = 0;
 
         let (mut reader, mut writer) = tokio::io::split(transport);
+        if let Some(authenticator) = self.authenticator.as_ref() {
+            // Before anything else, we read the first auth message.
+            let mut auth_bytes = 0;
+            let auth_deadline = Instant::now() + self.config.auth_message_timeout;
+            while auth_bytes < self.config.max_auth_message_size {
+                let can_read = read_buf
+                    .len()
+                    .min(self.config.max_auth_message_size - auth_bytes);
+                let buf_slice = &mut read_buf[0..can_read];
+                tokio::select! {
+                    maybe_got = reader.read(buf_slice) => {
+                        let got = maybe_got?;
+                        auth_bytes += got;
+                        let mut parser = self.parser.lock().unwrap();
+                        parser.feed(&mut &buf_slice[..got])?;
+                        if let ParserOutcome::Message(m) = parser.read_message()? {
+                            self.connected.store(true, Ordering::Relaxed);
+                            let handle = Arc::new(NetworkConnectionHandle(Arc::downgrade(self)));
+                            authenticator.authenticate(&m, handle)?;
+                            parser.roll_forward()?;
 
-        // Before anything else, we read the first auth message.
-        let mut auth_bytes = 0;
-        let auth_deadline = Instant::now() + self.config.auth_message_timeout;
-        while auth_bytes < self.config.max_auth_message_size {
-            let can_read = read_buf
-                .len()
-                .min(self.config.max_auth_message_size - auth_bytes);
-            let buf_slice = &mut read_buf[0..can_read];
-            tokio::select! {
-                maybe_got = reader.read(buf_slice) => {
-                    let got = maybe_got?;
-                    auth_bytes += got;
-                    let mut parser = self.parser.lock().unwrap();
-                    parser.feed(&mut &buf_slice[..got])?;
-                    if let ParserOutcome::Message(m) = parser.read_message()? {
-                        self.connected.store(true, Ordering::Relaxed);
-                        let handle = Arc::new(NetworkConnectionHandle(Arc::downgrade(self)));
-                        self.authenticator.authenticate(&m, handle)?;
-                        parser.roll_forward()?;
-
-                    }
-                },
-                _ =  tokio::time::sleep_until(auth_deadline) => {
-                    anyhow::bail!("Timeout waiting for auth message");
-                },
+                        }
+                    },
+                    _ =  tokio::time::sleep_until(auth_deadline) => {
+                        anyhow::bail!("Timeout waiting for auth message");
+                    },
+                }
             }
         }
 

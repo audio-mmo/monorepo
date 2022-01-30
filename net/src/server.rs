@@ -46,7 +46,7 @@ impl Server {
             let (stream, _) = listener.accept().await?;
             let conn = NetworkConnection::new(
                 self.config.connection_config.clone(),
-                self.authenticator.clone(),
+                Some(self.authenticator.clone()),
             );
             tokio::spawn(async {
                 if let Err(e) = conn.task(stream, Some(permit)).await {
