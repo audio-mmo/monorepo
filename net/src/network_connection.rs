@@ -21,6 +21,14 @@ const WRITE_BUF_SIZE: usize = 8192;
 #[derive(derivative::Derivative, Debug, Clone)]
 #[derivative(Default)]
 pub struct NetworkConnectionConfig {
+    /// Maximum length of the first message.  This is usually used for authentication/handshaking.
+    #[derivative(Default(value = "8192"))]
+    first_message_max_len: usize,
+
+    /// Timeout within which we must receive the first message.
+    #[derivative(Default(value = "Duration::from_secs(1)"))]
+    first_message_timeout: Duration,
+
     /// Maximum number of pendin bytes which may be unsent before a connection should be shut down.
     ///
     /// When exceeded, the connection ungracefully closes.
@@ -106,6 +114,29 @@ impl NetworkConnection {
         let mut write_buf_cursor = 0;
 
         let (mut reader, mut writer) = tokio::io::split(transport);
+        let first_msg_deadline = tokio::time::sleep(self.config.first_message_timeout);
+        tokio::pin!(first_msg_deadline);
+
+        loop {
+            tokio::select! {
+                maybe_read = reader.read(&mut read_buf[..]) => {
+                    let read = maybe_read?;
+                    if read == 0 {
+                        return Ok(());
+                    }
+
+                    self.parser.lock().unwrap().feed(&mut &read_buf[..read])?;
+                },
+                _ = &mut first_msg_deadline => {
+                    anyhow::bail!("Took too long to read the first message");
+                }
+            }
+
+            if let ParserOutcome::Message(_) = self.parser.lock().unwrap().read_message()? {
+                // We have at least one message.
+                break;
+            }
+        }
 
         let mut decoded_messages = self.decoded_messages.load(Ordering::Relaxed);
         let mut message_deadline_interval = tokio::time::interval(self.config.max_message_interval);
