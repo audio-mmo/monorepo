@@ -1,7 +1,7 @@
 use std::marker::Unpin;
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc, Mutex,
+    atomic::{AtomicBool, AtomicU64, Ordering},
+    Arc, Mutex, Weak,
 };
 use std::time::Duration;
 
@@ -13,6 +13,7 @@ use tokio::time::Instant;
 use ammo_framer::{Framer, Message, Parser, ParserOutcome};
 
 use crate::authentication::*;
+use crate::connection::*;
 
 const PARSER_CAP: usize = 8192;
 const READ_BUF_SIZE: usize = 8192;
@@ -53,44 +54,64 @@ pub struct NetworkConnectionConfig {
     write_timeout: Duration,
 }
 
-pub(crate) struct NetworkConnection<NT> {
+pub(crate) struct NetworkConnection {
     config: NetworkConnectionConfig,
     authenticator: Arc<dyn Authenticator>,
-    net_transport: NT,
-    drop_notifier: Notify,
+    close_notifier: Notify,
     framer: Mutex<Framer>,
     parser: Mutex<Parser>,
 
     /// Number of messages decoded from this connection so far.
     decoded_messages: AtomicU64,
+
+    /// True after successful authentication; false if the connection shuts down for any reason.
+    connected: AtomicBool,
 }
 
-impl<NT: AsyncRead + AsyncWrite + Unpin> NetworkConnection<NT> {
+/// We hold a weak reference, so that the connection goes away when either the task dies or the handle dies, whichever
+/// comes first.
+struct NetworkConnectionHandle(Weak<NetworkConnection>);
+
+impl NetworkConnection {
     pub(crate) fn new(
         config: NetworkConnectionConfig,
         authenticator: Arc<dyn Authenticator>,
-        net_transport: NT,
-    ) -> NetworkConnection<NT> {
+    ) -> NetworkConnection {
         NetworkConnection {
             authenticator,
-            net_transport,
-            drop_notifier: Notify::new(),
+            close_notifier: Notify::new(),
             framer: Mutex::new(Framer::new()),
             parser: Mutex::new(Parser::new(config.max_incoming_message_length, PARSER_CAP)),
             config,
             decoded_messages: AtomicU64::new(0),
+            connected: AtomicBool::new(false),
         }
     }
 
     pub(crate) async fn task(
-        mut self,
+        self,
+        transport: impl AsyncRead + AsyncWrite,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    ) -> Result<()> {
+        let aself = Arc::new(self);
+        let res = aself.task_inner(transport, permit).await;
+        aself.connected.store(false, Ordering::Relaxed);
+        res
+    }
+
+    async fn task_inner(
+        self: &Arc<Self>,
+        transport: impl AsyncRead + AsyncWrite,
         _permit: Option<tokio::sync::OwnedSemaphorePermit>,
     ) -> Result<()> {
         let mut read_buf: [u8; READ_BUF_SIZE] = [0; READ_BUF_SIZE];
         let mut write_buf: [u8; WRITE_BUF_SIZE] = [0; WRITE_BUF_SIZE];
+        let mut write_buf_size = 0;
+        let mut write_buf_cursor = 0;
+
+        let (mut reader, mut writer) = tokio::io::split(transport);
 
         // Before anything else, we read the first auth message.
-
         let mut auth_bytes = 0;
         let auth_deadline = Instant::now() + self.config.auth_message_timeout;
         while auth_bytes < self.config.max_auth_message_size {
@@ -99,14 +120,17 @@ impl<NT: AsyncRead + AsyncWrite + Unpin> NetworkConnection<NT> {
                 .min(self.config.max_auth_message_size - auth_bytes);
             let buf_slice = &mut read_buf[0..can_read];
             tokio::select! {
-                maybe_got = self.net_transport.read(buf_slice) => {
+                maybe_got = reader.read(buf_slice) => {
                     let got = maybe_got?;
                     auth_bytes += got;
                     let mut parser = self.parser.lock().unwrap();
                     parser.feed(&mut &buf_slice[..got])?;
-                    if let ParserOutcome::Message(_) = parser.read_message()? {
+                    if let ParserOutcome::Message(m) = parser.read_message()? {
+                        self.connected.store(true, Ordering::Relaxed);
+                        let handle = Arc::new(NetworkConnectionHandle(Arc::downgrade(self)));
+                        self.authenticator.authenticate(&m, handle)?;
                         parser.roll_forward()?;
-                        todo!();
+
                     }
                 },
                 _ =  tokio::time::sleep_until(auth_deadline) => {
@@ -115,11 +139,90 @@ impl<NT: AsyncRead + AsyncWrite + Unpin> NetworkConnection<NT> {
             }
         }
 
+        // We need to start off by filling the write buffer ourselves.
+
         let mut message_deadline = Instant::now() + self.config.max_message_interval;
         let mut decoded_messages = self.decoded_messages.load(Ordering::Relaxed);
 
-        loop {}
+        loop {
+            if write_buf_cursor == write_buf_size {
+                let guard = self.framer.lock().unwrap();
+                let front = guard.read_front(write_buf.len());
+                let front_len = front.len();
+                write_buf[..front_len].copy_from_slice(front);
+                write_buf_size = front.len();
+            }
 
-        Ok(())
+            tokio::select! {
+                maybe_got = reader.read(&mut read_buf[..]) => {
+                    let got = maybe_got?;
+                    self.parser.lock().unwrap().feed(&mut &read_buf[..got])?;
+                },
+                maybe_wrote = tokio::time::timeout(self.config.write_timeout, writer.write(&write_buf[write_buf_cursor..write_buf_size]))  => {
+                    let wrote = maybe_wrote??;
+                    if wrote == 0 {
+                        // EOF; nothing left to do.
+                        return Ok(());
+                    }
+
+                    write_buf_cursor += wrote;
+                },
+                _ = tokio::time::sleep_until(message_deadline) => {
+                    let new_decoded_messages = self.decoded_messages.load(Ordering::Relaxed);
+                    if new_decoded_messages == decoded_messages {
+                        anyhow::bail!("Received messages too slowly");
+                    }
+                    decoded_messages = new_decoded_messages;
+                    message_deadline = Instant::now() + self.config.max_message_interval;
+                },
+                _ = self.close_notifier.notified() => {
+                    return Ok(());
+                }
+            }
+        }
+    }
+}
+
+impl Drop for NetworkConnectionHandle {
+    fn drop(&mut self) {
+        if let Some(x) = self.0.upgrade() {
+            x.close_notifier.notify_one()
+        }
+    }
+}
+
+impl NetworkConnectionHandle {
+    fn with_good_conn<R>(&self, cb: impl FnOnce(&NetworkConnection) -> Result<R>) -> Result<R> {
+        let strong = self
+            .0
+            .upgrade()
+            .ok_or_else(|| anyhow::anyhow!("Connection task is dead"))?;
+        cb(&*strong)
+    }
+}
+
+impl Connection for NetworkConnectionHandle {
+    fn receive_messages(&self, callback: &mut dyn FnMut(&Message) -> Result<()>) -> Result<()> {
+        self.with_good_conn(|conn| {
+            let mut parser = conn.parser.lock().unwrap();
+            while let ParserOutcome::Message(m) = parser.read_message()? {
+                callback(&m)?;
+                parser.roll_forward()?;
+            }
+            Ok(())
+        })
+    }
+
+    fn send_message(&self, message: &Message) -> Result<()> {
+        self.with_good_conn(|c| {
+            let mut framer = c.framer.lock().unwrap();
+            framer.add_message(message);
+            Ok(())
+        })
+    }
+
+    fn is_connected(&self) -> bool {
+        self.with_good_conn(|c| Ok(c.connected.load(Ordering::Relaxed)))
+            .unwrap_or(false)
     }
 }

@@ -47,10 +47,9 @@ impl Server {
             let conn = NetworkConnection::new(
                 self.config.connection_config.clone(),
                 self.authenticator.clone(),
-                stream,
             );
             tokio::spawn(async {
-                if let Err(e) = conn.task(Some(permit)).await {
+                if let Err(e) = conn.task(stream, Some(permit)).await {
                     log::warn!("Error handling connection: {:?}", e);
                 }
             });
