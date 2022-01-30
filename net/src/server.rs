@@ -5,8 +5,8 @@ use anyhow::Result;
 use tokio::net::TcpListener;
 use tokio::sync::{mpsc::UnboundedReceiver, Semaphore};
 
-use crate::connection::Connection;
-use crate::message_handling::*;
+use crate::authentication::*;
+use crate::network_connection::NetworkConnection;
 
 #[derive(Clone, Debug, derive_builder::Builder)]
 pub struct ServerConfig {
@@ -20,25 +20,20 @@ pub struct ServerConfig {
     max_connections: usize,
 
     #[builder(default = "Default::default()")]
-    connection_config: crate::connection::ConnectionConfig,
+    connection_config: crate::network_connection::NetworkConnectionConfig,
 }
 
-/// A server.
-///
-/// This creates [MessageHandler]s and drives them via a given [MessageHandlerFactory].
-///
-/// We don't support clean shutdown of the server itself for now.
-pub struct Server<T> {
+pub struct Server {
     pub(crate) conn_sem: Arc<Semaphore>,
     pub(crate) config: ServerConfig,
-    pub(crate) message_handler_factory: Arc<T>,
+    pub(crate) authenticator: Arc<dyn Authenticator>,
 }
 
-impl<T: MessageHandlerFactory + 'static> Server<T> {
-    pub fn new(config: ServerConfig, message_handler_factory: T) -> Arc<Server<T>> {
+impl Server {
+    pub fn new<Auth: Authenticator>(config: ServerConfig, authenticator: Auth) -> Arc<Server> {
         Arc::new(Server {
             conn_sem: Arc::new(Semaphore::new(config.max_connections)),
-            message_handler_factory: Arc::new(message_handler_factory),
+            authenticator: Arc::new(authenticator),
             config,
         })
     }
@@ -49,9 +44,9 @@ impl<T: MessageHandlerFactory + 'static> Server<T> {
         loop {
             let permit = self.conn_sem.clone().acquire_owned().await?;
             let (stream, _) = listener.accept().await?;
-            let conn = Connection::new(
+            let conn = NetworkConnection::new(
                 self.config.connection_config.clone(),
-                self.message_handler_factory.clone(),
+                self.authenticator.clone(),
                 stream,
             );
             conn.spawn_consume(Some(permit))?;

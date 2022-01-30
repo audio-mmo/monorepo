@@ -1,8 +1,10 @@
 #![allow(dead_code, unused_imports)]
 mod connection;
-mod message_handling;
+mod authentication;
+mod network_connection;
 mod server;
 
 pub use connection::*;
-pub use message_handling::*;
+pub use authentication::*;
+pub use network_connection::*;
 pub use server::*;
