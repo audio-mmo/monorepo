@@ -98,16 +98,16 @@ impl NetworkConnection {
         permit: Option<tokio::sync::OwnedSemaphorePermit>,
     ) -> Result<()> {
         let aself = Arc::new(self);
-        let res = aself.task_inner(transport, permit).await;
+        let res = aself.task_inner(transport).await;
         aself.connected.store(false, Ordering::Relaxed);
+
+        // Let's be explicit about this, for clarity.
+        std::mem::drop(permit);
+
         res
     }
 
-    async fn task_inner(
-        self: &Arc<Self>,
-        transport: impl AsyncRead + AsyncWrite,
-        _permit: Option<tokio::sync::OwnedSemaphorePermit>,
-    ) -> Result<()> {
+    async fn task_inner(self: &Arc<Self>, transport: impl AsyncRead + AsyncWrite) -> Result<()> {
         let mut read_buf: [u8; READ_BUF_SIZE] = [0; READ_BUF_SIZE];
         let mut write_buf: [u8; WRITE_BUF_SIZE] = [0; WRITE_BUF_SIZE];
         let mut write_buf_size = 0;
