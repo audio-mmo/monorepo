@@ -119,9 +119,13 @@ impl NetworkConnection {
 
         let (mut reader, mut writer) = tokio::io::split(transport);
         if let Some(authenticator) = self.authenticator.as_ref() {
-            // Before anything else, we read the first auth message.
-            let mut auth_bytes = 0;
             let auth_deadline = Instant::now() + self.config.auth_message_timeout;
+
+            let deadline_fut = tokio::time::sleep_until(auth_deadline);
+            tokio::pin!(deadline_fut);
+
+            let mut auth_bytes = 0;
+
             while auth_bytes < self.config.max_auth_message_size {
                 let can_read = read_buf
                     .len()
@@ -141,7 +145,7 @@ impl NetworkConnection {
 
                         }
                     },
-                    _ =  tokio::time::sleep_until(auth_deadline) => {
+                    _ = &mut deadline_fut => {
                         anyhow::bail!("Timeout waiting for auth message");
                     },
                 }
