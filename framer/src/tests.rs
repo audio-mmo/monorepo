@@ -28,7 +28,7 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(10000))]
     #[test]
     fn fuzz(mut ops: Vec<TestOps>) {
-        let mut framer = Framer::new(1024);
+        let mut framer = Framer::new();
         let mut parser = Parser::new(None, 1024);
 
         // We should always flush the framer and then the parser at least once.

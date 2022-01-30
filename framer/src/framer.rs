@@ -8,26 +8,17 @@ use crate::varint;
 /// pattern here is to build up the list of frames to send in a batch, then to read the data out and send them over the
 /// network.  The batch interface allows for ammo_net to perform larger writes.
 pub struct Framer {
-    cap_limit: usize,
     buffer: Vec<u8>,
 }
 
 impl Framer {
-    /// Create a framer.
-    ///
-    /// `cap_limit` is the maximum capacity of the internal buffer after clearing.  Used to make sure that large frame
-    /// encodings don't cause
-    pub fn new(cap_limit: usize) -> Framer {
-        Framer {
-            cap_limit,
-            buffer: Vec::with_capacity(cap_limit),
-        }
+    pub fn new() -> Framer {
+        Framer { buffer: vec![] }
     }
 
     /// Clear the internal buffer to write a new batch of frames.
     pub fn clear(&mut self) {
         self.buffer.clear();
-        self.buffer.shrink_to(self.cap_limit);
     }
 
     pub fn add_message(&mut self, message: &Message) {
@@ -47,5 +38,11 @@ impl Framer {
     /// Read the data of all frames in the framer.
     pub fn get_data(&self) -> &[u8] {
         &self.buffer[..]
+    }
+}
+
+impl Default for Framer {
+    fn default() -> Self {
+        Framer::new()
     }
 }

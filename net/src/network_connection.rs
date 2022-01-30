@@ -14,9 +14,7 @@ use ammo_framer::{Framer, Message, Parser, ParserOutcome};
 
 use crate::authentication::*;
 
-const FRAMER_CAP: usize = 8192;
 const PARSER_CAP: usize = 8192;
-
 const READ_BUF_SIZE: usize = 8192;
 const WRITE_BUF_SIZE: usize = 8192;
 
@@ -77,7 +75,7 @@ impl<NT: AsyncRead + AsyncWrite + Unpin> NetworkConnection<NT> {
             authenticator,
             net_transport,
             drop_notifier: Notify::new(),
-            framer: Mutex::new(Framer::new(FRAMER_CAP)),
+            framer: Mutex::new(Framer::new()),
             parser: Mutex::new(Parser::new(config.max_incoming_message_length, PARSER_CAP)),
             config,
             decoded_messages: AtomicU64::new(0),
