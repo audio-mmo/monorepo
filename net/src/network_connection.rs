@@ -217,6 +217,10 @@ impl NetworkConnectionHandle {
             .0
             .upgrade()
             .ok_or_else(|| anyhow::anyhow!("Connection task is dead"))?;
+        if !strong.connected.load(Ordering::Relaxed) {
+            anyhow::bail!("Connection is no longer connected");
+        }
+
         cb(&*strong)
     }
 }
