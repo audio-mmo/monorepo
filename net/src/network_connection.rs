@@ -82,7 +82,7 @@ pub(crate) struct NetworkConnection {
 
 /// We hold a weak reference, so that the connection goes away when either the task dies or the handle dies, whichever
 /// comes first.
-struct NetworkConnectionHandle(Weak<NetworkConnection>);
+pub struct NetworkConnectionHandle(Weak<NetworkConnection>);
 
 impl NetworkConnection {
     pub(crate) fn new(config: NetworkConnectionConfig) -> NetworkConnection {
@@ -117,6 +117,8 @@ impl NetworkConnection {
         transport: impl AsyncRead + AsyncWrite,
         return_channel: tokio::sync::mpsc::Sender<Arc<dyn Connection>>,
     ) -> Result<()> {
+        log::debug!("Connection task started up");
+
         let mut read_buf: [u8; READ_BUF_SIZE] = [0; READ_BUF_SIZE];
         let mut write_buf: [u8; WRITE_BUF_SIZE] = [0; WRITE_BUF_SIZE];
         let mut write_buf_size = 0;
@@ -127,6 +129,7 @@ impl NetworkConnection {
         tokio::pin!(first_msg_deadline);
 
         if self.config.expect_first_message {
+            log::debug!("Waiting on first message...");
             loop {
                 tokio::select! {
                     maybe_read = reader.read(&mut read_buf[..]) => {
@@ -155,8 +158,11 @@ impl NetworkConnection {
         }
 
         let handle = Arc::new(NetworkConnectionHandle(Arc::downgrade(self)));
+        self.connected.store(true, Ordering::Relaxed);
+        log::debug!("Sent new connection handle");
+
         return_channel.send(handle).await.map_err(|_| {
-            anyhow::anyhow!("Unable to send cionnection handle because the faar side hung up")
+            anyhow::anyhow!("Unable to send connection handle because the faar side hung up")
         })?;
 
         let mut decoded_messages = self.decoded_messages.load(Ordering::Relaxed);
@@ -172,6 +178,7 @@ impl NetworkConnection {
                 let front_len = front.len();
                 write_buf[..front_len].copy_from_slice(front);
                 write_buf_size = front.len();
+                write_buf_cursor = 0;
             }
 
             let can_read =
@@ -193,6 +200,7 @@ impl NetworkConnection {
                     }
 
                     write_buf_cursor += wrote;
+                    self.framer.lock().unwrap().advance_cursor(wrote);
                 },
                 _ = message_deadline_interval.tick() => {
                     let new_decoded_messages = self.decoded_messages.load(Ordering::Relaxed);
@@ -274,12 +282,17 @@ impl NetworkConnectionHandle {
 }
 
 impl Connection for NetworkConnectionHandle {
-    fn receive_messages(&self, callback: &mut dyn FnMut(&Message) -> Result<()>) -> Result<()> {
+    fn receive_messages(&self, callback: &mut dyn FnMut(&Message) -> Result<bool>) -> Result<()> {
         self.with_good_conn(|conn| {
             let mut parser = conn.parser.lock().unwrap();
             while let ParserOutcome::Message(m) = parser.read_message()? {
-                callback(&m)?;
+                log::debug!("Handled message");
+                conn.decoded_messages.fetch_add(1, Ordering::Relaxed);
+                let should_continue = callback(&m)?;
                 parser.roll_forward()?;
+                if !should_continue {
+                    break;
+                }
             }
             Ok(())
         })

@@ -155,6 +155,7 @@ name = "ammo_net"
 version = "0.1.0"
 dependencies = [
  "ammo_framer",
+ "ammo_logging",
  "anyhow",
  "derivative",
  "derive_builder",

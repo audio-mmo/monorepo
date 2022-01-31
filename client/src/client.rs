@@ -20,7 +20,7 @@ pub struct Client {
 
 impl Client {
     pub fn new() -> Result<Self> {
-        ammo_logging::log_to_stdout();
+        ammo_logging::log_to_stderr();
 
         Ok(Client {
             main_thread: crate::main_thread::spawn_main_thread()?,

@@ -3,7 +3,7 @@
 /// Log to stdout.
 ///
 /// If called multiple times in the same process, only applies once.
-pub fn log_to_stdout() {
+pub fn log_to_stderr() {
     static ONCE: std::sync::Once = std::sync::Once::new();
 
     ONCE.call_once(|| {

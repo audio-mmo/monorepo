@@ -49,7 +49,8 @@ impl Server {
     pub async fn listening_loop(self: Arc<Self>) -> Result<()> {
         loop {
             let permit = self.conn_sem.clone().acquire_owned().await?;
-            let (stream, _) = self.listener.accept().await?;
+            let (stream, addr) = self.listener.accept().await?;
+            log::info!("Got new connection from {:?}", addr);
             let conn = NetworkConnection::new(self.config.connection_config.clone());
             let sender = self.pending_connections_sender.clone();
             tokio::spawn(async {
