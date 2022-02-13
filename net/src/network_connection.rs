@@ -1,4 +1,5 @@
 use std::marker::Unpin;
+use std::num::NonZeroU32;
 use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
     Arc, Mutex, Weak,
@@ -6,6 +7,7 @@ use std::sync::{
 use std::time::Duration;
 
 use anyhow::Result;
+use governor::{Quota, RateLimiter};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::Notify;
 use tokio::time::Instant;
@@ -64,6 +66,14 @@ pub struct NetworkConnectionConfig {
     /// How long the connection is allowed to shut down for before we give up sending any outstanding data.
     #[derivative(Default(value = "Duration::from_secs(5)"))]
     pub shutdown_timeout: Duration,
+
+    /// Limit on the outgoing bandwidth.
+    ///
+    /// We always read as fast as possible, but we slow down writes.
+    #[derivative(Default(
+        value = "Quota::per_second(NonZeroU32::new(1000000).unwrap()).allow_burst(NonZeroU32::new(5000000).unwrap())"
+    ))]
+    pub write_quota: Quota,
 }
 
 pub(crate) struct NetworkConnection {
@@ -71,6 +81,12 @@ pub(crate) struct NetworkConnection {
     close_notifier: Notify,
     framer: Mutex<Framer>,
     parser: Mutex<Parser>,
+    write_limiter: RateLimiter<
+        governor::state::direct::NotKeyed,
+        governor::state::InMemoryState,
+        governor::clock::DefaultClock,
+        governor::middleware::NoOpMiddleware,
+    >,
 
     /// Number of messages decoded from this connection so far.
     decoded_messages: AtomicU64,
@@ -90,10 +106,26 @@ impl NetworkConnection {
             close_notifier: Notify::new(),
             framer: Mutex::new(Framer::new()),
             parser: Mutex::new(Parser::new(config.max_incoming_message_length, PARSER_CAP)),
+            write_limiter: RateLimiter::direct(config.write_quota),
             config,
             decoded_messages: AtomicU64::new(0),
             connected: AtomicBool::new(false),
         }
+    }
+
+    async fn limited_write(
+        &self,
+        writer: &mut (impl AsyncWrite + std::marker::Unpin),
+        buf: &[u8],
+    ) -> Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+
+        self.write_limiter
+            .until_n_ready(NonZeroU32::new(buf.len() as u32).unwrap())
+            .await?;
+        Ok(tokio::time::timeout(self.config.write_timeout, writer.write(buf)).await??)
     }
 
     pub(crate) async fn task(
@@ -190,9 +222,9 @@ impl NetworkConnection {
                     let got = maybe_got?;
                     self.parser.lock().unwrap().feed(&mut &read_buf[..got])?;
                 },
-                maybe_wrote = (tokio::time::timeout(self.config.write_timeout, writer.write(&write_buf[write_buf_cursor..write_buf_size]))),
+                maybe_wrote = self.limited_write(&mut writer, &write_buf[write_buf_cursor..write_buf_size]),
                     if can_write => {
-                    let wrote = maybe_wrote??;
+                    let wrote = maybe_wrote?;
                     if wrote == 0 {
                         // EOF, which means that the other side closed the connection.  In this case, don't try to send
                         // the remaining bytes; there's nothing there to listen for them.

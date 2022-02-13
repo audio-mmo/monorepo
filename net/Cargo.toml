@@ -17,4 +17,5 @@ tokio-stream = "0.1.8"
 
 #[dev-dependencies]
 ammo_logging = { path = "../logging" }
+governor = "0.4.2"
 
