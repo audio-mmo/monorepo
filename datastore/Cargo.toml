@@ -11,9 +11,12 @@ itertools = "0.10.3"
 lazy_static = "1.4.0"
 log = "0.4.14"
 regex = "1.5.4"
-rusqlite = { version = "0.26.3", features = ["bundled"] }
+rusqlite = { version = "0.26.3", features = ["bundled", "i128_blob"] }
 serde = { version = "1.0.132", features = ["derive"] }
-serde_json = "1.0.73"
+serde_json = { version = "1.0.73", features = [
+    "default",
+    "arbitrary_precision",
+] }
 smallvec = "1.7.0"
 tera = "1.15.0"
 

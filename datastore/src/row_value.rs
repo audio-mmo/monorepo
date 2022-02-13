@@ -13,6 +13,7 @@ enum ColumnValue {
     I64(i64),
     Json(serde_json::Value),
     F64(f64),
+    I128(i128),
 }
 
 /// We anticipate that we will be building and destroying tons and tons of rows, so instead of using a hashmap etc. we
@@ -130,6 +131,7 @@ impl RowValue {
                 F64(x) => serde_json::json!(x),
                 I64(x) => serde_json::json!(x),
                 String(x) => serde_json::json!(x),
+                I128(x) => x.into(),
                 Json(x) => x,
             };
             map.insert(i.name, cval);
@@ -157,6 +159,7 @@ impl RowValue {
                 I64(x) => statement.raw_bind_parameter(param_index, x)?,
                 String(x) => statement.raw_bind_parameter(param_index, x)?,
                 F64(x) => statement.raw_bind_parameter(param_index, x)?,
+                I128(x) => statement.raw_bind_parameter(param_index, x)?,
                 Json(x) => {
                     statement.raw_bind_parameter(param_index, &serde_json::to_string(&x)?)?
                 }
