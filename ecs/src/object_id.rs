@@ -10,26 +10,23 @@
 //! In addition to functioning as a tie-breaker to prevent uniqueness, the random component of the id can also be used
 //! as a hash.
 //!
-//! In practice,. though, we want this to play nice with sqlite which only supports storing i64.  To that end, we
-//! actually store two i64s, as bit-to-bit conversions of the u64 components.  Under normal usage, the counter will
-//! actually always be positive in both cases, and the random component will assume any i64 value (so, e.g, order by in
-//! sqlite can work).
-use std::num::NonZeroI64;
+//! In practice,. though, we want this to play nice with sqlite.  To do that, we make the datastore crate support i128
+//! as blobs and provide conversion to/from that representation.
+use std::num::NonZeroU64;
 
 // We have to do ord by hand, but equivalence is fine because the underlying values have to be the same.
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct ObjectId {
-    counter: NonZeroI64,
-    random: i64,
+    counter: NonZeroU64,
+    random: u64,
 }
 
 impl ObjectId {
     pub fn new(counter: u64, random: u64) -> ObjectId {
         assert!(counter != 0);
         ObjectId {
-            counter: NonZeroI64::new(i64::from_ne_bytes(counter.to_ne_bytes()))
-                .expect("Counter must not be zero"),
-            random: i64::from_ne_bytes(random.to_ne_bytes()),
+            counter: NonZeroU64::new(counter).expect("Counter must not be zero"),
+            random,
         }
     }
 
@@ -37,25 +34,24 @@ impl ObjectId {
     ///
     /// Panics if the counter is zero, for convenience.
     pub fn new_testing(counter: u64) -> ObjectId {
-        let counter = NonZeroI64::new(i64::from_ne_bytes(counter.to_ne_bytes()))
-            .expect("Counter must not be zero");
+        let counter = NonZeroU64::new(counter).expect("Counter must not be zero");
         ObjectId { counter, random: 0 }
     }
 
     pub fn get_counter(&self) -> u64 {
-        u64::from_ne_bytes(self.counter.get().to_ne_bytes())
+        self.counter.get()
     }
 
     pub fn get_random(&self) -> u64 {
-        u64::from_ne_bytes(self.random.to_ne_bytes())
+        self.random
     }
 }
 
 impl std::fmt::Debug for ObjectId {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         fmt.debug_struct("ObjectId")
-            .field("counter", &self.counter.get())
-            .field("random", &self.random)
+            .field("counter", &self.get_counter())
+            .field("random", &self.get_random())
             .finish()
     }
 }
@@ -72,8 +68,38 @@ impl std::cmp::Ord for ObjectId {
     }
 }
 
+impl From<ObjectId> for i128 {
+    fn from(val: ObjectId) -> i128 {
+        let urep = (val.counter.get() as u128) << 64 | val.random as u128;
+        // Flip the upper bit before transmuting, and this makes the comparison order the same as the non-i128 ids.
+        let urep = urep ^ 1 << 127;
+        i128::from_ne_bytes(urep.to_ne_bytes())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Invalid object id {0}")]
+pub struct InvalidObjectIdError(i128);
+
+impl TryFrom<i128> for ObjectId {
+    type Error = InvalidObjectIdError;
+
+    fn try_from(val: i128) -> std::result::Result<ObjectId, InvalidObjectIdError> {
+        let urep = u128::from_ne_bytes(val.to_ne_bytes());
+        let urep = urep ^ 1 << 127;
+        let counter = (urep >> 64) as u64;
+        let random = (urep & u64::MAX as u128) as u64;
+        Ok(ObjectId {
+            counter: NonZeroU64::new(counter).ok_or(InvalidObjectIdError(val))?,
+            random,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+
     use super::*;
 
     /// We play tricks with u64->i64->u64 conversions.  Let's make sure that this is as lossless as we think, by trying
@@ -110,6 +136,32 @@ mod tests {
             let o2 = ObjectId::new(c2, r2);
             assert_eq!(o1.cmp(&o2), ordering, "{:?} {:?}", o1, o2);
             assert_eq!(o1.partial_cmp(&o2), Some(ordering), "{:?} {:?}", o1, o2);
+            let i1: i128 = o1.into();
+            let i2: i128 = o2.into();
+            assert_eq!(i1.cmp(&i2), ordering, "{:?} {:?} {} {}", o1, o2, i1, i2);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn roundtrip(counter in 1..=u64::MAX, random: u64) {
+            let o1 = ObjectId::new(counter, random);
+            let i: i128 = o1.into();
+            let o2 = i.try_into().expect("Should always succeed becuase this is a roundtrip test");
+            prop_assert_eq!(o1, o2, "{:?} {:?} {}", o1, o2, i);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn fuzz_ordering_i128(counter1 in 1..=u64::MAX, random1: u64, counter2 in 1..=u64::MAX, random2: u64) {
+            let o1 = ObjectId::new(counter1, random1);
+            let o2 = ObjectId::new(counter2, random2);
+            let ord1 = o1.cmp(&o2);
+            let i1: i128 = o1.into();
+            let i2 = o2.into();
+            let ord2 = i1.cmp(&i2);
+            prop_assert_eq!(ord1, ord2);
         }
     }
 }
