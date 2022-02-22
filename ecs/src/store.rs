@@ -35,13 +35,6 @@ use crate::object_id::ObjectId;
 /// A method `maintenance` should periodically be called: this gets rid of tombstones, compacts the vectors, and commits
 /// pending inserts.  Failure to call this method periodically will slowly grow the vecs to the largest size the
 /// container has evern been and keep them there, and also greatly slow iteration which must skip tombstones.
-///
-/// It is possible to iterate using a [StoreVisitor] which allows you to modify/delete objects from the store while
-/// visiting it, and the visitor will handle this case by figuring out what the next-largest id from the one it last saw
-/// was.  Deleting an object which you haven't seen yet will observe the delete.  Iterating over the store (via the
-/// visitor or via the iteration api) only iterates over committed inserts, and iterates in order of increasing object
-/// id.
-///
 /// The design here is optimized for the case in which we want to join multiple stores to perform queries in `O(1)`
 /// additional memory and `O(n)` time.  Basically, when deleting/inserting in higher level components, insert/deletions
 /// may not be visible until the next tick, but modifications are visible immediately.  
@@ -109,11 +102,6 @@ impl<T> Store<T> {
         self.keys.shrink_to_fit();
         self.values.shrink_to_fit();
         self.tombstones.shrink_to_fit();
-    }
-
-    /// Public wrapper of binary_search from std.
-    fn binary_search(&self, id: &ObjectId) -> Result<usize, usize> {
-        self.keys.binary_search(id)
     }
 
     fn search_index_from_id(&self, id: &ObjectId) -> SearchResult {
@@ -318,101 +306,6 @@ impl<T> Store<T> {
                 }
                 Some((i, *k, v))
             })
-    }
-}
-
-pub struct StoreVisitor<T> {
-    last_seen_id: Option<ObjectId>,
-    last_index: usize,
-    pd: std::marker::PhantomData<*const T>,
-}
-
-impl<T> StoreVisitor<T> {
-    pub fn new(#[allow(unused_variables)] store: &Store<T>) -> StoreVisitor<T> {
-        StoreVisitor {
-            last_index: 0,
-            last_seen_id: None,
-            pd: Default::default(),
-        }
-    }
-
-    fn advance_past_tombstones(&mut self, store: &Store<T>) {
-        while self.last_index < store.index_len() && !store.is_index_alive(self.last_index) {
-            self.last_index += 1;
-        }
-    }
-
-    /// Advance the index.
-    ///
-    /// This deals with object deletion, as well as index shifts: we compare against the last object id, and binary
-    /// search to find the first thing after it when we detect a mismatch.
-    fn incr_index(&mut self, store: &Store<T>) {
-        if self.last_index >= store.index_len() {
-            return;
-        }
-
-        // if we have a last seen id, sanity check it, then bump by one.
-        if let Some(ref oid) = self.last_seen_id {
-            if store.id_at_index(self.last_index) == *oid {
-                // Our index is good. Just increment it.
-                self.last_index += 1;
-            }
-            // Otherwise, we need to find the nearest index to the object and base it off that.
-            self.last_index = match store.binary_search(oid) {
-                Ok(i) => i + 1,
-                // We didn't find it, but we have the index to insert before; this is our next index.
-                Err(i) => i,
-            };
-        }
-        // Otherwise we haven't advanced yet.
-
-        self.advance_past_tombstones(store);
-
-        // Our last seen id is the index we're currently at, if this is possible to get.
-        if self.last_index < store.index_len() {
-            self.last_seen_id = Some(store.id_at_index(self.last_index));
-        }
-    }
-
-    pub fn next<'a>(&mut self, store: &'a Store<T>) -> Option<(usize, ObjectId, &'a T)> {
-        self.incr_index(store);
-        if self.last_index >= store.index_len() {
-            return None;
-        }
-
-        return Some((
-            self.last_index,
-            store.id_at_index(self.last_index),
-            store.get_by_index(self.last_index).unwrap(),
-        ));
-    }
-
-    pub fn next_mut<'a>(
-        &mut self,
-        store: &'a mut Store<T>,
-    ) -> Option<(usize, ObjectId, &'a mut T)> {
-        self.incr_index(store);
-        if self.last_index >= store.index_len() {
-            return None;
-        }
-
-        Some((
-            self.last_index,
-            store.id_at_index(self.last_index),
-            store.get_by_index_mut(self.last_index).unwrap(),
-        ))
-    }
-
-    /// Peak at the next id this visitor will return, assuming that the store isn't modified in the meantime.
-    ///
-    /// Used in the query infrastructure.
-    pub fn peak_id(&mut self, store: &Store<T>) -> Option<ObjectId> {
-        let old_last_index = self.last_index;
-        let old_objid = self.last_seen_id;
-        let ret = self.next(store).map(|x| x.1);
-        self.last_index = old_last_index;
-        self.last_seen_id = old_objid;
-        ret
     }
 }
 
@@ -627,113 +520,6 @@ mod tests {
         );
         assert_eq!(&store.values, &vec![1, 2, 3, 4, 5]);
         assert_eq!(&store.tombstones, &bitvec::bitvec![0, 1, 0, 1, 1]);
-    }
-
-    #[test]
-    fn test_visitor_basic() {
-        let mut store: Store<u64> = Store::new();
-        for i in 1..=5 {
-            store.insert(&ObjectId::new_testing(i), i);
-        }
-
-        let mut vis = StoreVisitor::new(&store);
-        let mut res = vec![];
-        while let Some((_, k, v)) = vis.next(&store) {
-            res.push((k.get_counter(), *v));
-        }
-
-        assert_eq!(res, vec![(1, 1), (2, 2), (3, 3), (4, 4), (5, 5)]);
-    }
-
-    #[test]
-    fn test_visitor_tombstone() {
-        let mut store: Store<u64> = Store::new();
-        for i in 1..=10 {
-            store.insert(&ObjectId::new_testing(i), i);
-        }
-
-        store.delete_index(1);
-        store.delete_index(3);
-        store.delete_index(4);
-        store.delete_index(9);
-
-        let mut vis = StoreVisitor::new(&store);
-        let mut res = vec![];
-        while let Some((_, k, v)) = vis.next(&store) {
-            res.push((k.get_counter(), *v));
-        }
-
-        assert_eq!(res, vec![(1, 1), (3, 3), (6, 6), (7, 7), (8, 8), (9, 9)]);
-    }
-
-    #[test]
-    fn test_visitor_tombstone_with_delete_before() {
-        let mut store: Store<u64> = Store::new();
-        for i in 1..=10 {
-            store.insert(&ObjectId::new_testing(i), i);
-        }
-
-        let mut vis = StoreVisitor::new(&store);
-        let mut res = vec![];
-        for _ in 0..3 {
-            res.push(vis.next(&store).map(|x| (x.1.get_counter(), *x.2)).unwrap());
-        }
-
-        store.delete_index(0);
-        store.maintenance();
-
-        while let Some((_, k, v)) = vis.next(&store) {
-            res.push((k.get_counter(), *v));
-        }
-
-        assert_eq!(
-            res,
-            vec![
-                (1, 1),
-                (2, 2),
-                (3, 3),
-                (4, 4),
-                (5, 5),
-                (6, 6),
-                (7, 7),
-                (8, 8),
-                (9, 9),
-                (10, 10),
-            ]
-        );
-    }
-
-    #[test]
-    fn test_visitor_on_empty_store() {
-        let store: Store<u64> = Store::new();
-        let mut vis = StoreVisitor::new(&store);
-        assert_eq!(vis.next(&store), None);
-    }
-
-    #[test]
-    fn test_visitor_peak() {
-        let mut store: Store<u64> = Store::new();
-        for i in 1..=5 {
-            store.insert(&ObjectId::new_testing(i), i);
-        }
-
-        let mut vis = StoreVisitor::new(&store);
-        let mut res = vec![];
-        let mut peak = vec![vis.peak_id(&store)];
-        while let Some((_, k, v)) = vis.next(&store) {
-            res.push((k.get_counter(), *v));
-            peak.push(vis.peak_id(&store));
-        }
-        let peak = peak
-            .into_iter()
-            .map(|x| x.map(|y| y.get_counter()))
-            .collect::<Vec<_>>();
-
-        assert_eq!(res, vec![(1, 1), (2, 2), (3, 3), (4, 4), (5, 5)]);
-        assert_eq!(
-            peak,
-            vec![Some(1), Some(2), Some(3), Some(4), Some(5), None]
-        );
     }
 
     #[test]
