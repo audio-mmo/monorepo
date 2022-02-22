@@ -4,6 +4,8 @@
 /// process start.  Serializes as a u64.
 ///
 /// The default impl is the minimum possible version.
+///
+/// As with other things we might want to save to Sqlite, the internal representation is i64.
 #[derive(
     Copy,
     Clone,
@@ -12,18 +14,17 @@
     Eq,
     PartialOrd,
     Ord,
-    Default,
     serde::Serialize,
     serde::Deserialize,
     derive_more::Display,
 )]
 #[serde(transparent)]
 #[display(fmt = "v{_0}")]
-pub struct Version(u64);
+pub struct Version(i64);
 
 impl Version {
     /// The version less than all other versions.
-    pub const MIN: Version = Version(0);
+    pub const MIN: Version = Version(i64::MIN);
 
     /// Get the next version after this one.
     ///
@@ -32,5 +33,11 @@ impl Version {
     pub fn increment(&self) -> Version {
         let nv = self.0.checked_add(1).expect("We hit the max version!");
         Version(nv)
+    }
+}
+
+impl Default for Version {
+    fn default() -> Version {
+        Version::MIN
     }
 }
