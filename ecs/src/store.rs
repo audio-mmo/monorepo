@@ -2,8 +2,6 @@
 //! [Store] type for details.
 use std::collections::BTreeMap;
 
-use bitvec::vec::BitVec;
-
 use crate::object_id::ObjectId;
 
 /// A store for component data consisting of some vecs.
@@ -12,7 +10,7 @@ use crate::object_id::ObjectId;
 ///
 /// - A vec of keys, which must be [ObjectId]s.
 /// - A vec of values, which can be anything.
-/// - A bitvec of tombstones, which are toggled to true when objects are deleted.
+/// - A vec of metadata, which records whether or not things are alive.
 ///
 /// This container may be accessed by index (for iterating) or by object id (for map-like access).  When objects are
 /// inserted, they go either to an unused slot in the vecs or to a queue of pending inserts.  Like with stdlib maps,
@@ -44,8 +42,24 @@ use crate::object_id::ObjectId;
 pub struct Store<T> {
     keys: Vec<ObjectId>,
     values: Vec<T>,
-    tombstones: BitVec,
+    meta: Vec<Meta>,
     pending_inserts: BTreeMap<ObjectId, T>,
+}
+
+#[derive(Debug, Copy, Clone, Eq, Ord, PartialEq, PartialOrd, Hash)]
+enum Meta {
+    Alive,
+    Dead,
+}
+
+impl Meta {
+    fn is_alive(&self) -> bool {
+        *self == Meta::Alive
+    }
+
+    fn is_dead(&self) -> bool {
+        *self == Meta::Dead
+    }
 }
 
 impl<T> Default for Store<T> {
@@ -53,7 +67,7 @@ impl<T> Default for Store<T> {
         Self {
             keys: vec![],
             values: vec![],
-            tombstones: BitVec::new(),
+            meta: vec![],
             pending_inserts: Default::default(),
         }
     }
@@ -76,24 +90,21 @@ impl<T> Store<T> {
     /// Compact all tombstones after a given index.
     fn compact(&mut self) {
         let mut key_ind = 0;
-        let keys = &mut self.keys;
-        let tombs = &mut self.tombstones;
-        keys.retain(|_| {
-            let ret = !tombs[key_ind];
+        self.keys.retain(|_| {
+            let ret = self.meta[key_ind].is_alive();
             key_ind += 1;
             ret
         });
 
         let mut val_ind = 0;
-        let vals = &mut self.values;
-        vals.retain(|_| {
-            let ret = !tombs[val_ind];
+        self.values.retain(|_| {
+            let ret = self.meta[val_ind].is_alive();
             val_ind += 1;
             ret
         });
 
-        self.tombstones.truncate(self.keys.len());
-        self.tombstones.set_elements(0);
+        self.meta
+            .resize_with(self.keys.len(), || panic!("Shrinking"));
     }
 
     pub fn maintenance(&mut self) {
@@ -101,22 +112,22 @@ impl<T> Store<T> {
         self.commit_pending_inserts();
         self.keys.shrink_to_fit();
         self.values.shrink_to_fit();
-        self.tombstones.shrink_to_fit();
+        self.meta.shrink_to_fit();
     }
 
     fn search_index_from_id(&self, id: &ObjectId) -> SearchResult {
         let ind = self.keys.binary_search(id);
         match ind {
-            Ok(i) | Err(i) if i < self.tombstones.len() && self.tombstones[i] => {
+            Ok(i) | Err(i) if i < self.meta.len() && self.meta[i].is_dead() => {
                 SearchResult::TombstoneAvailable(i)
             }
             Err(_) if self.pending_inserts.contains_key(id) => SearchResult::Pending,
             Ok(i) => SearchResult::Found(i),
             Err(i) => {
                 // Special case: if the end of the vector is a tombstone and we would insert at the end, use that.
-                if let Some(t) = self.tombstones.last() {
-                    if *t && i == self.tombstones.len() {
-                        return SearchResult::TombstoneAvailable(self.tombstones.len() - 1);
+                if let Some(t) = self.meta.last() {
+                    if t.is_dead() && i == self.meta.len() {
+                        return SearchResult::TombstoneAvailable(self.meta.len() - 1);
                     }
                 }
                 SearchResult::InsertBefore(i)
@@ -132,7 +143,7 @@ impl<T> Store<T> {
                 Some(old)
             }
             SearchResult::TombstoneAvailable(i) => {
-                self.tombstones.set(i, false);
+                self.meta[i] = Meta::Alive;
                 self.keys[i] = *id;
                 self.values[i] = val;
                 None
@@ -142,7 +153,7 @@ impl<T> Store<T> {
                 if i == self.keys.len() {
                     self.keys.push(*id);
                     self.values.push(val);
-                    self.tombstones.push(false);
+                    self.meta.push(Meta::Alive);
                     return None;
                 }
                 self.pending_inserts.insert(*id, val)
@@ -152,20 +163,15 @@ impl<T> Store<T> {
     }
 
     pub fn commit_pending_inserts(&mut self) {
-        // First, insert anything we can insert via a tombstone.  We have to help the borrow checker out here until
-        // edition 2021 is stable.
-        let mut pi = BTreeMap::new();
-        std::mem::swap(&mut pi, &mut self.pending_inserts);
-
-        pi.retain(|id, val| {
+        self.pending_inserts.retain(|id, val| {
             let res = self.keys.binary_search(id);
             match res {
-                Err(i) if i < self.tombstones.len() && self.tombstones[i] => {
+                Err(i) if i < self.meta.len() && self.meta[i].is_dead() => {
                     self.keys[i] = *id;
                     // val is `&mut T`; we need to steal it because Rust doesn't understand that we're going to return
                     // false and drop it from the vec.
                     std::mem::swap(&mut self.values[i], val);
-                    self.tombstones.set(i, false);
+                    self.meta[i] = Meta::Alive;
                     false
                 }
                 _ => true,
@@ -175,7 +181,7 @@ impl<T> Store<T> {
         // Now that we've reused what tombstones we can, get rid of the rest.
         self.compact();
 
-        let mut iterator = pi.into_iter();
+        let mut iterator = std::mem::take(&mut self.pending_inserts).into_iter();
 
         // While we're not just pushing to the end, do some looping.
         for (k, v) in &mut iterator {
@@ -185,7 +191,7 @@ impl<T> Store<T> {
                     // k is consumed, we must deal with it here because we can't put it back on the iterator.
                     self.keys.push(k);
                     self.values.push(v);
-                    self.tombstones.push(false);
+                    self.meta.push(Meta::Alive);
                     break;
                 }
             }
@@ -197,7 +203,7 @@ impl<T> Store<T> {
             self.keys.insert(ind, k);
             self.values.insert(ind, v);
             // Compacting already cleared the tombstones; we need only make sure it stays the right size.
-            self.tombstones.push(false);
+            self.meta.push(Meta::Alive);
         }
 
         // Most of the work actually happens here: the special cases above were just getting things out of the way.
@@ -206,11 +212,11 @@ impl<T> Store<T> {
         for (k, v) in iterator {
             self.keys.push(k);
             self.values.push(v);
-            self.tombstones.push(false);
+            self.meta.push(Meta::Alive);
         }
 
         assert_eq!(self.keys.len(), self.values.len());
-        assert_eq!(self.values.len(), self.tombstones.len());
+        assert_eq!(self.values.len(), self.meta.len());
     }
 
     pub fn get_by_id(&self, id: &ObjectId) -> Option<&T> {
@@ -247,7 +253,7 @@ impl<T> Store<T> {
     pub fn delete_id(&mut self, id: &ObjectId) -> bool {
         match self.search_index_from_id(id) {
             SearchResult::Found(i) => {
-                self.tombstones.set(i, true);
+                self.meta[i] = Meta::Dead;
                 true
             }
             SearchResult::Pending => {
@@ -261,14 +267,13 @@ impl<T> Store<T> {
     }
 
     pub fn delete_index(&mut self, index: usize) -> bool {
-        let ret = self.tombstones[index];
-        self.tombstones.set(index, true);
-        // Ret is true if there was already a tombstone, e.g. we did nothing.
-        !ret
+        let ret = self.meta[index].is_alive();
+        self.meta[index] = Meta::Dead;
+        ret
     }
 
     pub fn is_index_alive(&self, index: usize) -> bool {
-        !self.tombstones[index]
+        self.meta[index].is_alive()
     }
 
     pub fn index_len(&self) -> usize {
@@ -286,7 +291,7 @@ impl<T> Store<T> {
             .enumerate()
             .zip(self.values.iter())
             .filter_map(move |((i, k), v)| {
-                if self.tombstones[i] {
+                if self.meta[i].is_dead() {
                     return None;
                 }
                 Some((i, *k, v))
@@ -296,12 +301,12 @@ impl<T> Store<T> {
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (usize, ObjectId, &mut T)> {
         let ks = &self.keys;
         let vs = &mut self.values;
-        let ts = &self.tombstones;
+        let ms = &self.meta;
         ks.iter()
             .enumerate()
             .zip(vs.iter_mut())
             .filter_map(move |((i, k), v)| {
-                if ts[i] {
+                if ms[i].is_dead() {
                     return None;
                 }
                 Some((i, *k, v))
@@ -312,8 +317,6 @@ impl<T> Store<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use bitvec::prelude::*;
 
     #[test]
     fn basic_ordered_inserting() {
@@ -414,7 +417,7 @@ mod tests {
             ]
         );
         assert_eq!(&store.values, &vec![1, 2, 3, 4, 5]);
-        assert_eq!(&store.tombstones, &bitvec::bitvec![0; 5]);
+        assert_eq!(&store.meta, &vec![Meta::Alive; 5]);
     }
 
     #[test]
@@ -464,7 +467,7 @@ mod tests {
             ]
         );
         assert_eq!(&store.values, &vec![11, 12, 13, 14, 15]);
-        assert_eq!(&store.tombstones, &bitvec::bitvec![0; 5],);
+        assert_eq!(&store.meta, &vec![Meta::Alive; 5],);
     }
 
     #[test]
@@ -519,7 +522,10 @@ mod tests {
             ]
         );
         assert_eq!(&store.values, &vec![1, 2, 3, 4, 5]);
-        assert_eq!(&store.tombstones, &bitvec::bitvec![0, 1, 0, 1, 1]);
+        assert_eq!(
+            &store.meta,
+            &vec![Meta::Alive, Meta::Dead, Meta::Alive, Meta::Dead, Meta::Dead]
+        );
     }
 
     #[test]
