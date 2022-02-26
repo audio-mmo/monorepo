@@ -43,13 +43,18 @@ pub struct Store<T> {
     keys: Vec<ObjectId>,
     values: Vec<T>,
     meta: Vec<Meta>,
-    pending_inserts: BTreeMap<ObjectId, T>,
+    pending_inserts: BTreeMap<ObjectId, PendingInsertRecord<T>>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, Ord, PartialEq, PartialOrd, Hash)]
 enum Meta {
     Alive,
     Dead,
+}
+
+struct PendingInsertRecord<T> {
+    value: T,
+    meta: Meta,
 }
 
 impl Meta {
@@ -156,9 +161,26 @@ impl<T> Store<T> {
                     self.meta.push(Meta::Alive);
                     return None;
                 }
-                self.pending_inserts.insert(*id, val)
+                self.pending_inserts
+                    .insert(
+                        *id,
+                        PendingInsertRecord {
+                            meta: Meta::Alive,
+                            value: val,
+                        },
+                    )
+                    .map(|x| x.value)
             }
-            SearchResult::Pending => self.pending_inserts.insert(*id, val),
+            SearchResult::Pending => self
+                .pending_inserts
+                .insert(
+                    *id,
+                    PendingInsertRecord {
+                        meta: Meta::Alive,
+                        value: val,
+                    },
+                )
+                .map(|x| x.value),
         }
     }
 
@@ -170,8 +192,8 @@ impl<T> Store<T> {
                     self.keys[i] = *id;
                     // val is `&mut T`; we need to steal it because Rust doesn't understand that we're going to return
                     // false and drop it from the vec.
-                    std::mem::swap(&mut self.values[i], val);
-                    self.meta[i] = Meta::Alive;
+                    std::mem::swap(&mut self.values[i], &mut val.value);
+                    self.meta[i] = val.meta;
                     false
                 }
                 _ => true,
@@ -190,8 +212,8 @@ impl<T> Store<T> {
                 if k > l {
                     // k is consumed, we must deal with it here because we can't put it back on the iterator.
                     self.keys.push(k);
-                    self.values.push(v);
-                    self.meta.push(Meta::Alive);
+                    self.values.push(v.value);
+                    self.meta.push(v.meta);
                     break;
                 }
             }
@@ -201,9 +223,9 @@ impl<T> Store<T> {
                 Err(x) => x,
             };
             self.keys.insert(ind, k);
-            self.values.insert(ind, v);
+            self.values.insert(ind, v.value);
             // Compacting already cleared the tombstones; we need only make sure it stays the right size.
-            self.meta.push(Meta::Alive);
+            self.meta.push(v.meta);
         }
 
         // Most of the work actually happens here: the special cases above were just getting things out of the way.
@@ -211,8 +233,8 @@ impl<T> Store<T> {
         // startup if the clock went backward or when loading from saved data.
         for (k, v) in iterator {
             self.keys.push(k);
-            self.values.push(v);
-            self.meta.push(Meta::Alive);
+            self.values.push(v.value);
+            self.meta.push(v.meta);
         }
 
         assert_eq!(self.keys.len(), self.values.len());
@@ -223,7 +245,7 @@ impl<T> Store<T> {
         match self.search_index_from_id(id) {
             SearchResult::Found(i) => self.values.get(i),
             SearchResult::TombstoneAvailable(_) | SearchResult::InsertBefore(_) => None,
-            SearchResult::Pending => self.pending_inserts.get(id),
+            SearchResult::Pending => self.pending_inserts.get(id).map(|x| &x.value),
         }
     }
 
@@ -231,7 +253,7 @@ impl<T> Store<T> {
         match self.search_index_from_id(id) {
             SearchResult::Found(i) => self.values.get_mut(i),
             SearchResult::TombstoneAvailable(_) | SearchResult::InsertBefore(_) => None,
-            SearchResult::Pending => self.pending_inserts.get_mut(id),
+            SearchResult::Pending => self.pending_inserts.get_mut(id).map(|x| &mut x.value),
         }
     }
 
@@ -445,7 +467,7 @@ mod tests {
             store
                 .pending_inserts
                 .iter()
-                .map(|x| (*x.0, *x.1))
+                .map(|x| (*x.0, x.1.value))
                 .collect::<Vec<_>>(),
             vec![
                 (ObjectId::new_testing(2), 12),
