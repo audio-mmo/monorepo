@@ -57,6 +57,35 @@ struct PendingInsertRecord<T> {
     meta: Meta,
 }
 
+pub struct StoreRef<'a, T> {
+    value: &'a T,
+}
+
+pub struct StoreRefMut<'a, T> {
+    value: &'a mut T,
+}
+
+impl<'a, T> std::ops::Deref for StoreRef<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.value
+    }
+}
+
+impl<'a, T> std::ops::Deref for StoreRefMut<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &*self.value
+    }
+}
+
+impl<'a, T> std::ops::DerefMut for StoreRefMut<'a, T> {
+    fn deref_mut(&mut self) -> &mut <Self as std::ops::Deref>::Target {
+        self.value
+    }
+}
+
 impl Meta {
     fn is_alive(&self) -> bool {
         *self == Meta::Alive
@@ -241,28 +270,35 @@ impl<T> Store<T> {
         assert_eq!(self.values.len(), self.meta.len());
     }
 
-    pub fn get_by_id(&self, id: &ObjectId) -> Option<&T> {
+    pub fn get_by_id(&self, id: &ObjectId) -> Option<StoreRef<T>> {
         match self.search_index_from_id(id) {
-            SearchResult::Found(i) => self.values.get(i),
+            SearchResult::Found(i) => self.values.get(i).map(|value| StoreRef { value }),
             SearchResult::TombstoneAvailable(_) | SearchResult::InsertBefore(_) => None,
-            SearchResult::Pending => self.pending_inserts.get(id).map(|x| &x.value),
+            SearchResult::Pending => self
+                .pending_inserts
+                .get(id)
+                .map(|x| StoreRef { value: &x.value }),
         }
     }
 
-    pub fn get_by_id_mut(&mut self, id: &ObjectId) -> Option<&mut T> {
+    pub fn get_by_id_mut(&mut self, id: &ObjectId) -> Option<StoreRefMut<T>> {
         match self.search_index_from_id(id) {
-            SearchResult::Found(i) => self.values.get_mut(i),
+            SearchResult::Found(i) => self.values.get_mut(i).map(|value| StoreRefMut { value }),
             SearchResult::TombstoneAvailable(_) | SearchResult::InsertBefore(_) => None,
-            SearchResult::Pending => self.pending_inserts.get_mut(id).map(|x| &mut x.value),
+            SearchResult::Pending => self.pending_inserts.get_mut(id).map(|x| StoreRefMut {
+                value: &mut x.value,
+            }),
         }
     }
 
-    pub fn get_by_index(&self, index: usize) -> Option<&T> {
-        self.values.get(index)
+    pub fn get_by_index(&self, index: usize) -> Option<StoreRef<T>> {
+        self.values.get(index).map(|value| StoreRef { value })
     }
 
-    pub fn get_by_index_mut(&mut self, index: usize) -> Option<&mut T> {
-        self.values.get_mut(index)
+    pub fn get_by_index_mut(&mut self, index: usize) -> Option<StoreRefMut<T>> {
+        self.values
+            .get_mut(index)
+            .map(|value| StoreRefMut { value })
     }
 
     pub fn index_for_id(&self, id: &ObjectId) -> Option<usize> {
@@ -307,7 +343,7 @@ impl<T> Store<T> {
     }
 
     /// Returns a `(index, ObjectId, value)` iterator.
-    pub fn iter(&self) -> impl Iterator<Item = (usize, ObjectId, &T)> {
+    pub fn iter(&self) -> impl Iterator<Item = (usize, ObjectId, StoreRef<T>)> {
         self.keys
             .iter()
             .enumerate()
@@ -316,11 +352,11 @@ impl<T> Store<T> {
                 if self.meta[i].is_dead() {
                     return None;
                 }
-                Some((i, *k, v))
+                Some((i, *k, StoreRef { value: v }))
             })
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (usize, ObjectId, &mut T)> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (usize, ObjectId, StoreRefMut<T>)> {
         let ks = &self.keys;
         let vs = &mut self.values;
         let ms = &self.meta;
@@ -331,7 +367,7 @@ impl<T> Store<T> {
                 if ms[i].is_dead() {
                     return None;
                 }
-                Some((i, *k, v))
+                Some((i, *k, StoreRefMut { value: v }))
             })
     }
 }
@@ -363,7 +399,7 @@ mod tests {
         );
 
         for i in 0..5 {
-            assert_eq!(store.get_by_index(i).unwrap(), &((i + 1) as u64));
+            assert_eq!(*store.get_by_index(i).unwrap(), ((i + 1) as u64));
         }
     }
 
@@ -381,7 +417,7 @@ mod tests {
         assert!(!store.is_index_alive(2));
         store.insert(&ObjectId::new_testing(5), 5);
         assert_eq!(store.id_at_index(2), ObjectId::new_testing(5));
-        assert_eq!(store.get_by_index(2).unwrap(), &5);
+        assert_eq!(*store.get_by_index(2).unwrap(), 5);
 
         store.delete_index(1);
         store.delete_index(3);
@@ -391,10 +427,10 @@ mod tests {
         store.insert(&ObjectId::new_testing(3), 3);
         store.insert(&ObjectId::new_testing(7), 7);
         assert_eq!(store.id_at_index(1), ObjectId::new_testing(3));
-        assert_eq!(store.get_by_index(1).unwrap(), &3);
+        assert_eq!(*store.get_by_index(1).unwrap(), 3);
         assert!(store.is_index_alive(1));
         assert_eq!(store.id_at_index(3), ObjectId::new_testing(7));
-        assert_eq!(store.get_by_index(3).unwrap(), &7);
+        assert_eq!(*store.get_by_index(3).unwrap(), 7);
         assert!(store.is_index_alive(3));
 
         // Reuse of the first and last elements are an interesting case worth doing.
@@ -402,7 +438,7 @@ mod tests {
         assert!(!store.is_index_alive(0));
         store.insert(&ObjectId::new_testing(1), 1);
         assert!(store.is_index_alive(0));
-        assert_eq!(store.get_by_index(0).unwrap(), &1);
+        assert_eq!(*store.get_by_index(0).unwrap(), 1);
         assert_eq!(store.id_at_index(0), ObjectId::new_testing(1));
 
         store.delete_index(4);
@@ -411,7 +447,7 @@ mod tests {
         store.insert(&ObjectId::new_testing(100), 100);
         assert!(store.is_index_alive(4));
         assert_eq!(store.id_at_index(4), ObjectId::new_testing(100));
-        assert_eq!(store.get_by_index(4).unwrap(), &100);
+        assert_eq!(*store.get_by_index(4).unwrap(), 100);
     }
 
     #[test]
@@ -502,23 +538,23 @@ mod tests {
 
         for i in 1..=10 {
             assert_eq!(
-                store.get_by_id(&ObjectId::new_testing(i * 2)),
-                Some(&(i * 2))
+                *store.get_by_id(&ObjectId::new_testing(i * 2)).unwrap(),
+                i * 2,
             );
             assert_eq!(
-                store.get_by_id_mut(&ObjectId::new_testing(i * 2)),
-                Some(&mut (i * 2))
+                *store.get_by_id_mut(&ObjectId::new_testing(i * 2)).unwrap(),
+                i * 2
             );
 
             // Check that any index we shouldn't have isn't present.
-            assert_eq!(store.get_by_id(&ObjectId::new_testing(i * 2 + 1)), None);
-            assert_eq!(store.get_by_id_mut(&ObjectId::new_testing(i * 2 + 1)), None);
+            assert!(store.get_by_id(&ObjectId::new_testing(i * 2 + 1)).is_none());
+            assert!(store.get_by_id_mut(&ObjectId::new_testing(i * 2 + 1)).is_none());
         }
 
         // Putting something in the pending inserts should work.
         store.insert(&ObjectId::new_testing(1), 1);
-        assert_eq!(store.get_by_id(&ObjectId::new_testing(1)), Some(&1));
-        assert_eq!(store.get_by_id_mut(&ObjectId::new_testing(1)), Some(&mut 1));
+        assert_eq!(*store.get_by_id(&ObjectId::new_testing(1)).unwrap(), 1);
+        assert_eq!(*store.get_by_id_mut(&ObjectId::new_testing(1)).unwrap(), 1);
     }
 
     #[test]
