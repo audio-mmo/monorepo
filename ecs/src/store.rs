@@ -1,44 +1,7 @@
-//! The [Store] is a store optimized for in-order object ids, using 3 vecs and a BTreeMap.  See the comments on the
-//! [Store] type for details.
 use std::collections::BTreeMap;
 
 use crate::object_id::ObjectId;
 
-/// A store for component data consisting of some vecs.
-///
-/// This implementation uses:
-///
-/// - A vec of keys, which must be [ObjectId]s.
-/// - A vec of values, which can be anything.
-/// - A vec of metadata, which records whether or not things are alive.
-///
-/// This container may be accessed by index (for iterating) or by object id (for map-like access).  When objects are
-/// inserted, they go either to an unused slot in the vecs or to a queue of pending inserts.  Like with stdlib maps,
-/// inserting twice is how one can override the key, but a variety of `get` and `get_mut` methods are available.
-///
-/// Observe the following rules about visibility:
-///
-/// - Indices are stable until inserts are committed, but the vec may grow and/or reuse tombstone-occupied cells.
-/// - All deletes are visible if going through the `by_id` interfaces.
-/// - All inserts are visible if going through the `by_id` interfaces.
-/// - Objects may not be assigned an index until after `commit_pending_inserts` is called.  They will usually be if
-///   objects are inserted in order of increasing id.
-/// - The `by_index` API doesn't check tombstones for you.  Use `is_index_alive` for that.
-/// - Data isn't dropped until inserts are committed and/or maintenance is called.
-///
-/// So the usage pattern is: when iterating if you're not inserting do nothing, otherwise you might or might not see the
-/// object.  In common usage you probably will but this isn't guaranteed.  If you want to see the object commit all the
-/// inserts.
-///
-/// A method `maintenance` should periodically be called: this gets rid of tombstones, compacts the vectors, and commits
-/// pending inserts.  Failure to call this method periodically will slowly grow the vecs to the largest size the
-/// container has evern been and keep them there, and also greatly slow iteration which must skip tombstones.
-/// The design here is optimized for the case in which we want to join multiple stores to perform queries in `O(1)`
-/// additional memory and `O(n)` time.  Basically, when deleting/inserting in higher level components, insert/deletions
-/// may not be visible until the next tick, but modifications are visible immediately.  
-///
-/// Methods which don't return `Option` use normal `[]` indexing under the hood and generally panic on invariant
-/// failures.
 pub struct Store<T> {
     keys: Vec<ObjectId>,
     values: Vec<T>,
@@ -121,7 +84,6 @@ impl<T> Store<T> {
         Default::default()
     }
 
-    /// Compact all tombstones after a given index.
     fn compact(&mut self) {
         let mut key_ind = 0;
         self.keys.retain(|_| {
@@ -548,7 +510,9 @@ mod tests {
 
             // Check that any index we shouldn't have isn't present.
             assert!(store.get_by_id(&ObjectId::new_testing(i * 2 + 1)).is_none());
-            assert!(store.get_by_id_mut(&ObjectId::new_testing(i * 2 + 1)).is_none());
+            assert!(store
+                .get_by_id_mut(&ObjectId::new_testing(i * 2 + 1))
+                .is_none());
         }
 
         // Putting something in the pending inserts should work.
