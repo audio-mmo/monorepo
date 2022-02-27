@@ -20,11 +20,11 @@ pub struct Worldlet {
 }
 
 impl Worldlet {
-    pub fn borrow_store<T: Component>(&self) -> StoreRef<T> {
+    pub fn borrow_store<T: Component>(&self) -> StoreRef<T, ()> {
         self.stores.borrow()
     }
 
-    pub fn borrow_store_mut<T: Component>(&self) -> StoreRefMut<T> {
+    pub fn borrow_store_mut<T: Component>(&self) -> StoreRefMut<T, ()> {
         self.stores.borrow_mut()
     }
 }

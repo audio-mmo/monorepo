@@ -21,26 +21,26 @@ use crate::store::Store;
 use ammo_ecs_core::Component;
 
 /// A mutable borrow of a store.
-pub struct StoreRef<'a, T>(AtomicRef<'a, Store<T>>);
+pub struct StoreRef<'a, T, M>(AtomicRef<'a, Store<T, M>>);
 
 /// A mutable borrow of a store.
-pub struct StoreRefMut<'a, T>(AtomicRefMut<'a, Store<T>>);
+pub struct StoreRefMut<'a, T, M>(AtomicRefMut<'a, Store<T, M>>);
 
-impl<'a, T> std::ops::Deref for StoreRef<'a, T> {
-    type Target = Store<T>;
+impl<'a, T, M> std::ops::Deref for StoreRef<'a, T, M> {
+    type Target = Store<T, M>;
     fn deref(&self) -> &Self::Target {
         self.0.deref()
     }
 }
 
-impl<'a, T> std::ops::Deref for StoreRefMut<'a, T> {
-    type Target = Store<T>;
+impl<'a, T, M> std::ops::Deref for StoreRefMut<'a, T, M> {
+    type Target = Store<T, M>;
     fn deref(&self) -> &Self::Target {
         self.0.deref()
     }
 }
 
-impl<'a, T> std::ops::DerefMut for StoreRefMut<'a, T> {
+impl<'a, T, M> std::ops::DerefMut for StoreRefMut<'a, T, M> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0.deref_mut()
     }
@@ -50,7 +50,7 @@ impl<'a, T> std::ops::DerefMut for StoreRefMut<'a, T> {
 pub struct StoreMap(FrozenMap<TypeId, Box<dyn Any>>);
 
 impl StoreMap {
-    fn get_refcell<T: Component>(&self) -> &AtomicRefCell<Store<T>> {
+    fn get_refcell<T: Component>(&self) -> &AtomicRefCell<Store<T, ()>> {
         self.0
             .get(&TypeId::of::<T>())
             .expect("Should find the specified type in the map")
@@ -58,21 +58,21 @@ impl StoreMap {
             .expect("Should always downcast")
     }
 
-    fn get_refcell_mut<T: Component>(&mut self) -> &mut AtomicRefCell<Store<T>> {
+    fn get_refcell_mut<T: Component>(&mut self) -> &mut AtomicRefCell<Store<T, ()>> {
         self.0
-            .get_mut(&TypeId::of::<Store<T>>())
+            .get_mut(&TypeId::of::<Store<T, ()>>())
             .expect("Should find the specified type in the map")
             .downcast_mut()
             .expect("Should always downcast")
     }
 
     /// Borrow a store immutably. Panics if there is an outstanding mutable borrow.
-    pub fn borrow<T: Component>(&self) -> StoreRef<T> {
+    pub fn borrow<T: Component>(&self) -> StoreRef<T, ()> {
         StoreRef(self.get_refcell().borrow())
     }
 
     /// Borrow a store mutably. Panics if there are any other borrows.
-    pub fn borrow_mut<T: Component>(&self) -> StoreRefMut<T> {
+    pub fn borrow_mut<T: Component>(&self) -> StoreRefMut<T, ()> {
         StoreRefMut(self.get_refcell().borrow_mut())
     }
 
@@ -80,7 +80,7 @@ impl StoreMap {
     ///
     /// This always succeeds if the type is present, since having a mutable reference as the caller is a proof that no
     /// immutable borrows are outstanding.
-    pub fn get_mut<T: Component>(&mut self) -> &mut Store<T> {
+    pub fn get_mut<T: Component>(&mut self) -> &mut Store<T, ()> {
         self.get_refcell_mut().get_mut()
     }
 }
@@ -95,7 +95,7 @@ type StoreMapInserter = fn(&mut FrozenMapBuilder<TypeId, Box<dyn Any>>) -> ();
 fn insert_store<T: Component>(builder: &mut FrozenMapBuilder<TypeId, Box<dyn Any>>) {
     builder.add(
         TypeId::of::<T>(),
-        Box::new(AtomicRefCell::new(Store::<T>::new())),
+        Box::new(AtomicRefCell::new(Store::<T, ()>::new(()))),
     );
 }
 
