@@ -1,8 +1,9 @@
 use std::{collections::BTreeMap, marker::PhantomData};
 
 use crate::object_id::ObjectId;
+use crate::version::Version;
 
-pub struct Store<T, M> {
+pub struct Store<T, M = Version> {
     keys: Vec<ObjectId>,
     values: Vec<T>,
     meta: Vec<Meta<M>>,

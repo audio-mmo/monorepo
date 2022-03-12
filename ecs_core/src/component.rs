@@ -9,7 +9,7 @@ use serde::{de::DeserializeOwned, Serialize};
 /// A component, for example an object position.
 ///
 /// Components must implement [Serialize] and [DeserializeOwned] as well as the methods on this trait.
-pub trait Component: Serialize + DeserializeOwned + Clone + 'static {
+pub trait Component: Serialize + DeserializeOwned + Clone + 'static + Send + Sync {
     /// Get the string-based namespace for this component, for example `("ammo",
     /// "position")`.  The string namespace `"ammo"` is reserved.
     ///
@@ -32,7 +32,8 @@ pub trait Component: Serialize + DeserializeOwned + Clone + 'static {
         Self: Sized;
 }
 
-/// A trait providing a blanket impl to add object-safe forms of the [Component] type-level metods, as well as other component helpers.
+/// A trait providing a blanket impl to add object-safe forms of the [Component] type-level metods, as well as other
+/// component helpers.
 pub trait ComponentExt: Component {
     fn get_int_id(&self) -> crate::IntId;
     fn get_string_id(&self) -> crate::StringId;

@@ -34,6 +34,11 @@ impl<StoreM: StoreMap, SysM: SystemMap> Worldlet<StoreM, SysM> {
     fn register_system<S: System>(&mut self) {
         self.system_runners
             .push(|w| w.get_system_mut::<S>().execute(w));
+        self.systems.register_system::<S>();
+    }
+
+    fn register_component<C: Component>(&mut self) {
+        self.stores.register_component::<C>();
     }
 
     pub fn get_store<T: Component>(&self) -> AtomicRef<Store<T, Version>> {
@@ -61,10 +66,7 @@ impl<StoreM: StoreMap, SysM: SystemMap> Worldlet<StoreM, SysM> {
     }
 }
 
-/// A factory which can produce worldlets.
-///
-/// This doesn't contain data, just info on what a worldlet is going to need.  This is used to add systems to a
-/// worldlet, and to prewarm the maps so that we're not trying to build things in the middle of game ticks.
+/// A factory which can produce worldlets repeatedly.
 #[derive(Default)]
 pub struct WorldletFactory<StoreM: StoreMap, SysM: SystemMap> {
     /// Things we will do to the new worldlet.
@@ -81,14 +83,13 @@ impl<StoreM: StoreMap, SysM: SystemMap> WorldletFactory<StoreM, SysM> {
     pub fn register_system<S: System>(&mut self) -> &mut Self {
         self.ops.push(|w| {
             w.register_system::<S>();
-            w.get_system::<S>();
         });
         self
     }
 
     pub fn register_component<C: Component>(&mut self) -> &mut Self {
         self.ops.push(|w| {
-            w.get_store::<C>();
+            w.register_component::<C>();
         });
         self
     }
