@@ -107,3 +107,77 @@ impl<StoreM: StoreMap, SysM: SystemMap> WorldletFactory<StoreM, SysM> {
         worldlet
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::store_map::DynamicStoreMap;
+    use crate::system_map::DynamicSystemMap;
+
+    #[derive(Default)]
+    struct System1(bool);
+    #[derive(Default)]
+    struct System2(bool);
+
+    impl System for System1 {
+        fn execute<StoreM: StoreMap, SysM: SystemMap>(
+            &mut self,
+            _worldlet: &Worldlet<StoreM, SysM>,
+        ) -> Result<()> {
+            self.0 = true;
+            Ok(())
+        }
+    }
+
+    impl System for System2 {
+        fn execute<StoreM: StoreMap, SysM: SystemMap>(
+            &mut self,
+            _worldlet: &Worldlet<StoreM, SysM>,
+        ) -> Result<()> {
+            self.0 = true;
+            Ok(())
+        }
+    }
+
+    #[derive(crate::Component, Clone, Debug, serde::Serialize, serde::Deserialize)]
+    #[ammo(
+        namespace = "\"testing\"",
+        id = "\"comp\"",
+        int_namespace = "2",
+        int_id = "1"
+    )]
+    struct Comp {
+        data: u32,
+    }
+
+    fn factory() -> WorldletFactory<DynamicStoreMap, DynamicSystemMap> {
+        let mut fact = WorldletFactory::new();
+        fact.register_system::<System1>()
+            .register_system::<System2>()
+            .register_component::<Comp>();
+        fact
+    }
+
+    #[test]
+    fn test_getting() {
+        let fact = factory();
+        let worldlet = fact.build_worldlet();
+
+        // These panic if they're broken.
+        worldlet.get_store::<Comp>();
+        worldlet.get_system::<System1>();
+        worldlet.get_system::<System2>();
+        worldlet.get_store_mut::<Comp>();
+        worldlet.get_system_mut::<System1>();
+        worldlet.get_system_mut::<System2>();
+    }
+
+    #[test]
+    fn test_running() {
+        let worldlet = factory().build_worldlet();
+        worldlet.run_systems().expect("Should run");
+        assert!(worldlet.get_system::<System1>().0);
+        assert!(worldlet.get_system::<System2>().0);
+    }
+}
