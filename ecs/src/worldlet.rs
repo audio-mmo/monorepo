@@ -10,55 +10,24 @@
 //! theory possible for systems, etc. to "escape" their zone, they should not do so, and the API is designed to make
 //! this somewhat difficult.  If a system is able to use parallelism specifically within this worldlet, it can do so via
 //! Rayon.
-//!
-//! Worldlets are build from a [WorldletTemplate], which is where systems, etc. are actually registered.
-use crate::store_map::{StoreMap, StoreMapFactory, StoreMapFactoryBuilder, StoreRef, StoreRefMut};
+use atomic_refcell::{AtomicRef, AtomicRefMut};
+
 use ammo_ecs_core::Component;
 
-pub struct Worldlet {
-    stores: StoreMap,
+use crate::store::Store;
+use crate::store_map::StoreMap;
+use crate::version::Version;
+
+pub struct Worldlet<SM: StoreMap> {
+    stores: SM,
 }
 
-impl Worldlet {
-    pub fn borrow_store<T: Component>(&self) -> StoreRef<T, ()> {
-        self.stores.borrow()
+impl<SM: StoreMap> Worldlet<SM> {
+    pub fn get_store<T: Component>(&self) -> AtomicRef<Store<T, Version>> {
+        self.stores.get_store()
     }
 
-    pub fn borrow_store_mut<T: Component>(&self) -> StoreRefMut<T, ()> {
-        self.stores.borrow_mut()
-    }
-}
-
-pub struct WorldletTemplate {
-    store_factory: StoreMapFactory,
-}
-
-impl WorldletTemplate {
-    pub fn instantiate(&self) -> Worldlet {
-        Worldlet {
-            stores: self.store_factory.generate(),
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct WorldletTemplateBuilder {
-    store_factory_builder: StoreMapFactoryBuilder,
-}
-
-impl WorldletTemplateBuilder {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    pub fn register_component<T: Component>(&mut self) -> &mut Self {
-        self.store_factory_builder.register::<T>();
-        self
-    }
-
-    pub fn build(self) -> WorldletTemplate {
-        WorldletTemplate {
-            store_factory: self.store_factory_builder.build(),
-        }
+    pub fn get_store_mut<T: Component>(&self) -> AtomicRefMut<Store<T, Version>> {
+        self.stores.get_store_mut()
     }
 }

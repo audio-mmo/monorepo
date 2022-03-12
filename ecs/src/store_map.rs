@@ -1,164 +1,23 @@
-//! The [StoreMap] contains a collection of component stores, and is constructed via a [StoreMapFactory], which you get
-//! via a [StoreMapFactoryBuilder].
-//!
-//! The reason this is so overengineered is that we want to be able to get multiple maps from a factory, and we want the
-//! user to configure one factory for us containing all the types they want stores for.  Specifically:
-//!
-//! - At program start, the user registers all their types.  This becomes a factory.
-//! - At zone load, the factory generates a map for the zone.
-//!
-//! The map offers a `RefCell`-like interface: calling `borrow` returns a wrapper of an immutable borrow, calling
-//! `borrow_mut` returns a wrapper of a mutable borrow but panics if there is an immutable borrow, and calling `get_mut`
-//! always succeeds because the caller must have started with a `&mut` reference.
-//!
-//! The map panics if it's asked for a type it doesn't contain: this is a coding error.
-use std::any::{Any, TypeId};
 
-use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 
-use crate::frozen_map::{FrozenMap, FrozenMapBuilder};
-use crate::store::Store;
+use atomic_refcell::{AtomicRef, AtomicRefMut};
+
 use ammo_ecs_core::Component;
 
-/// A mutable borrow of a store.
-pub struct StoreRef<'a, T, M>(AtomicRef<'a, Store<T, M>>);
+use crate::store::Store;
+use crate::version::Version;
 
-/// A mutable borrow of a store.
-pub struct StoreRefMut<'a, T, M>(AtomicRefMut<'a, Store<T, M>>);
-
-impl<'a, T, M> std::ops::Deref for StoreRef<'a, T, M> {
-    type Target = Store<T, M>;
-    fn deref(&self) -> &Self::Target {
-        self.0.deref()
-    }
-}
-
-impl<'a, T, M> std::ops::Deref for StoreRefMut<'a, T, M> {
-    type Target = Store<T, M>;
-    fn deref(&self) -> &Self::Target {
-        self.0.deref()
-    }
-}
-
-impl<'a, T, M> std::ops::DerefMut for StoreRefMut<'a, T, M> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.deref_mut()
-    }
-}
-
-/// A map which contains a collection of stores.
-pub struct StoreMap(FrozenMap<TypeId, Box<dyn Any>>);
-
-impl StoreMap {
-    fn get_refcell<T: Component>(&self) -> &AtomicRefCell<Store<T, ()>> {
-        self.0
-            .get(&TypeId::of::<T>())
-            .expect("Should find the specified type in the map")
-            .downcast_ref()
-            .expect("Should always downcast")
-    }
-
-    fn get_refcell_mut<T: Component>(&mut self) -> &mut AtomicRefCell<Store<T, ()>> {
-        self.0
-            .get_mut(&TypeId::of::<Store<T, ()>>())
-            .expect("Should find the specified type in the map")
-            .downcast_mut()
-            .expect("Should always downcast")
-    }
-
-    /// Borrow a store immutably. Panics if there is an outstanding mutable borrow.
-    pub fn borrow<T: Component>(&self) -> StoreRef<T, ()> {
-        StoreRef(self.get_refcell().borrow())
-    }
-
-    /// Borrow a store mutably. Panics if there are any other borrows.
-    pub fn borrow_mut<T: Component>(&self) -> StoreRefMut<T, ()> {
-        StoreRefMut(self.get_refcell().borrow_mut())
-    }
-
-    /// Get a mutable reference to a store. Panics if the store is not in the map.
-    ///
-    /// This always succeeds if the type is present, since having a mutable reference as the caller is a proof that no
-    /// immutable borrows are outstanding.
-    pub fn get_mut<T: Component>(&mut self) -> &mut Store<T, ()> {
-        self.get_refcell_mut().get_mut()
-    }
-}
-
-/// Callback type used below in the factory.
+/// The StoreMap trait represents maps of stores.
 ///
-/// This erases generics by instantiating a function implementation which will add a map entry to a `FrozenMapBuilder`,
-/// then storing those in a vec.
-type StoreMapInserter = fn(&mut FrozenMapBuilder<TypeId, Box<dyn Any>>) -> ();
+/// In order to allow for concurrency, we use AtomicRef and AtomicRefMut.
+pub trait StoreMap: Sync + Send + 'static {
+    /// get a store, or insert an empty one.
+    ///
+    /// Should panic if the store is borrowed mutably.
+    fn get_store<'a, C: Component>(&'a self) -> AtomicRef<'a, Store<C, Version>>;
 
-/// helper method, placed in a vec of callbacks to represent what types to add to the map at runtime.
-fn insert_store<T: Component>(builder: &mut FrozenMapBuilder<TypeId, Box<dyn Any>>) {
-    builder.add(
-        TypeId::of::<T>(),
-        Box::new(AtomicRefCell::new(Store::<T, ()>::new(()))),
-    );
-}
-
-pub struct StoreMapFactory(Vec<StoreMapInserter>);
-
-impl StoreMapFactory {
-    pub fn generate(&self) -> StoreMap {
-        let mut mb = FrozenMapBuilder::new();
-        for i in self.0.iter() {
-            (*i)(&mut mb);
-        }
-        StoreMap(mb.freeze())
-    }
-}
-
-#[derive(Default)]
-pub struct StoreMapFactoryBuilder(Vec<StoreMapInserter>);
-
-impl StoreMapFactoryBuilder {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    /// Registera type with this map.
-    pub fn register<T: Component>(&mut self) -> &mut Self {
-        self.0.push(insert_store::<T>);
-        self
-    }
-
-    pub fn build(self) -> StoreMapFactory {
-        StoreMapFactory(self.0)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use crate::components::{Ambiance, Position};
-
-    fn build_test_map() -> StoreMap {
-        let mut fb = StoreMapFactoryBuilder::new();
-        fb.register::<Position>().register::<Ambiance>();
-        let fact = fb.build();
-        fact.generate()
-    }
-
-    #[test]
-    fn test_basic() {
-        let map = build_test_map();
-        {
-            let _s1 = map.borrow::<Position>();
-            let _s2 = map.borrow::<Ambiance>();
-        }
-        // And now a mutable borrow shouldn't panic.
-        map.borrow::<Position>();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_immutable_mutable_fails() {
-        let map = build_test_map();
-        let _borrow = map.borrow::<Position>();
-        map.borrow_mut::<Position>();
-    }
+    /// Get a store mutably, or insert an empty one.
+    ///
+    /// Panics if the store is borrowed immutably.
+    fn get_store_mut<'a, C: Component>(&'a self) -> AtomicRefMut<'a, Store<C, Version>>;
 }
