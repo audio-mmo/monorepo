@@ -13,14 +13,18 @@ use std::any::Any;
 use anyhow::Result;
 
 use crate::store_map::StoreMap;
+use crate::system_map::SystemMap;
 use crate::worldlet::Worldlet;
 
 /// The system trait. See module-level documentation.
-pub trait System: Any + Send {
+pub trait System: Any + Send + Sync + Default {
     /// Run the system
     ///
     /// Systems can be fallible.  If this is the case, it should only fail if the world would be left in an inconsistent
     /// state; this is an escape hatch to do something better than a panic (for example scream at alerting), not a
     /// general-purpose mechanism.  Systems should try their best to be pure.
-    fn execute<SM: StoreMap>(&mut self, worldlet: &Worldlet<SM>) -> Result<()>;
+    fn execute<StoreM: StoreMap, SysM: SystemMap>(
+        &mut self,
+        worldlet: &Worldlet<StoreM, SysM>,
+    ) -> Result<()>;
 }

@@ -8,7 +8,7 @@ use crate::version::Version;
 /// The StoreMap trait represents maps of stores.
 ///
 /// In order to allow for concurrency, we use AtomicRef and AtomicRefMut.
-pub trait StoreMap: Sync + Send + 'static {
+pub trait StoreMap: Sync + Send + 'static + Default {
     /// get a store, or insert an empty one.
     ///
     /// Should panic if the store is borrowed mutably.

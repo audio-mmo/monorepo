@@ -6,6 +6,7 @@ pub mod prelude;
 pub mod store;
 pub mod store_map;
 pub mod system;
+pub mod system_map;
 pub mod time;
 pub mod version;
 pub mod worldlet;
