@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use ammo_ecs_core::prelude::*;
 
 /// The integral id for the [Ambiance] component.
 pub const AMBIANCE_ID: u16 = 3;
@@ -6,9 +6,9 @@ pub const AMBIANCE_ID: u16 = 3;
 pub const AMBIANCE_ID_STR: &str = "ambiance";
 
 /// Attach a sound to an object.
-#[derive(Clone, Component, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, ammo_ecs_derive::Component, Debug, serde::Deserialize, serde::Serialize)]
 #[ammo(
-    namespace = "AMMO_NAMESPACE",
+    namespace = "AMMO_STRING_NAMESPACE",
     id = "AMBIANCE_ID_STR",
     int_namespace = "AMMO_INT_NAMESPACE",
     int_id = "AMBIANCE_ID"

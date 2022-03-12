@@ -1,4 +1,4 @@
-use ammo_ecs::prelude::*;
+use ammo_ecs::*;
 
 #[derive(Component, Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[ammo(

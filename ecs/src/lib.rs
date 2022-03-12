@@ -1,19 +1,6 @@
-pub mod components;
-pub mod frozen_map;
-pub mod id_factory;
-pub mod object_id;
-pub mod prelude;
-pub mod store;
-pub mod store_map;
-pub mod system;
-pub mod system_map;
-pub mod time;
-pub mod version;
-pub mod worldlet;
+pub mod components {
+    pub use ammo_ecs_components::*;
+}
 
+pub use ammo_ecs_core::*;
 pub use ammo_ecs_derive::*;
-
-/// The reserved string namespace for ammo components.
-pub const AMMO_NAMESPACE: &str = "ammo";
-/// The reserved int namespace for ammo components.
-pub const AMMO_INT_NAMESPACE: u16 = 1;

@@ -1,6 +1,6 @@
 use ammo_physics::V2;
 
-use crate::prelude::*;
+use ammo_ecs_core::prelude::*;
 
 /// The id of the [Position] component.
 pub const POSITION_ID: u16 = 1;
@@ -8,9 +8,9 @@ pub const POSITION_ID: u16 = 1;
 pub const POSITION_ID_STR: &str = "position";
 
 /// Represents a position.
-#[derive(Component, Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(ammo_ecs_derive::Component, Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[ammo(
-    namespace = "AMMO_NAMESPACE",
+    namespace = "AMMO_STRING_NAMESPACE",
     id = "POSITION_ID_STR",
     int_namespace = "AMMO_INT_NAMESPACE",
     int_id = "POSITION_ID"

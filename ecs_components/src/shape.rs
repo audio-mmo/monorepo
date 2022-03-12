@@ -1,13 +1,13 @@
-use crate::prelude::*;
+use ammo_ecs_core::prelude::*;
 
 /// The id of the [Shape] component.
 const SHAPE_ID: u16 = 2;
 /// The string id of the [Shape] component.
 const SHAPE_ID_STR: &str = "shape";
 
-#[derive(Clone, Component, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, ammo_ecs_derive::Component, Debug, serde::Deserialize, serde::Serialize)]
 #[ammo(
-    namespace = "AMMO_NAMESPACE",
+    namespace = "AMMO_STRING_NAMESPACE",
     id = "SHAPE_ID_STR",
     int_namespace = "AMMO_INT_NAMESPACE",
     int_id = "SHAPE_ID"

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 
-use ammo_ecs_core::Component;
+use crate::component::Component;
 
 use crate::store::Store;
 use crate::version::Version;

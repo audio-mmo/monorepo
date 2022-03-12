@@ -10,7 +10,7 @@
 //! theory possible for systems, etc. to "escape" their zone, they should not do so, and the API is designed to make
 //! this somewhat difficult.  If a system is able to use parallelism specifically within this worldlet, it can do so via
 //! Rayon.
-use ammo_ecs_core::Component;
+use crate::component::Component;
 use anyhow::Result;
 use atomic_refcell::{AtomicRef, AtomicRefMut};
 
@@ -140,15 +140,25 @@ mod tests {
         }
     }
 
-    #[derive(crate::Component, Clone, Debug, serde::Serialize, serde::Deserialize)]
-    #[ammo(
-        namespace = "\"testing\"",
-        id = "\"comp\"",
-        int_namespace = "2",
-        int_id = "1"
-    )]
+    #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
     struct Comp {
         data: u32,
+    }
+
+    impl Component for Comp {
+        fn get_string_id() -> crate::StringId {
+            crate::StringId {
+                namespace: "ammo",
+                id: "comp",
+            }
+        }
+
+        fn get_int_id() -> crate::IntId {
+            crate::IntId {
+                id: 1,
+                namespace: std::num::NonZeroU16::new(1).unwrap(),
+            }
+        }
     }
 
     fn factory() -> WorldletFactory<DynamicStoreMap, DynamicSystemMap> {
