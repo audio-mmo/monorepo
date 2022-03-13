@@ -16,4 +16,3 @@ pub use identifiers::*;
 
 pub const AMMO_INT_NAMESPACE: u16 = 1;
 pub const AMMO_STRING_NAMESPACE: &str = "ammo";
-
