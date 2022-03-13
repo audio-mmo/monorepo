@@ -1,7 +1,7 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-use atomic_refcell::{AtomicRefCell};
+use atomic_refcell::AtomicRefCell;
 
 use crate::component::Component;
 

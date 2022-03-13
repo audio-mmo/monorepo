@@ -11,7 +11,7 @@
 //! this somewhat difficult.  If a system is able to use parallelism specifically within this worldlet, it can do so via
 //! Rayon.
 use anyhow::Result;
-use atomic_refcell::{AtomicRefCell};
+use atomic_refcell::AtomicRefCell;
 
 use crate::component::Component;
 use crate::store::Store;
