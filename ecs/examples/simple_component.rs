@@ -1,7 +1,7 @@
 use ammo_ecs::*;
 
-#[derive(Component, Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[ammo(
+#[derive(Component, HasIdentifiers, Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[ammo_idents(
     namespace = "\"example\"",
     id = "\"foo\"",
     int_namespace = "2",

@@ -126,6 +126,8 @@ mod tests {
     use crate::store_map::DynamicStoreMap;
     use crate::system_map::DynamicSystemMap;
 
+    use crate::HasIdentifiers;
+
     #[derive(Default)]
     struct System1(bool);
     #[derive(Default)]
@@ -156,21 +158,23 @@ mod tests {
         data: u32,
     }
 
-    impl Component for Comp {
-        fn get_string_id() -> crate::StringId {
+    impl HasIdentifiers for Comp {
+        fn get_string_id_from_type() -> crate::StringId {
             crate::StringId {
                 namespace: "ammo",
                 id: "comp",
             }
         }
 
-        fn get_int_id() -> crate::IntId {
+        fn get_int_id_from_type() -> crate::IntId {
             crate::IntId {
                 id: 1,
                 namespace: std::num::NonZeroU16::new(1).unwrap(),
             }
         }
     }
+
+    impl Component for Comp {}
 
     fn factory() -> WorldletFactory<DynamicStoreMap, DynamicSystemMap> {
         let mut fact = WorldletFactory::new();

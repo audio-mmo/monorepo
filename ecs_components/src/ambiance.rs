@@ -6,8 +6,15 @@ pub const AMBIANCE_ID: u16 = 3;
 pub const AMBIANCE_ID_STR: &str = "ambiance";
 
 /// Attach a sound to an object.
-#[derive(Clone, ammo_ecs_derive::Component, Debug, serde::Deserialize, serde::Serialize)]
-#[ammo(
+#[derive(
+    Clone,
+    ammo_ecs_derive::Component,
+    ammo_ecs_derive::HasIdentifiers,
+    Debug,
+    serde::Deserialize,
+    serde::Serialize,
+)]
+#[ammo_idents(
     namespace = "AMMO_STRING_NAMESPACE",
     id = "AMBIANCE_ID_STR",
     int_namespace = "AMMO_INT_NAMESPACE",

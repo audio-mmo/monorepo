@@ -8,8 +8,15 @@ pub const POSITION_ID: u16 = 1;
 pub const POSITION_ID_STR: &str = "position";
 
 /// Represents a position.
-#[derive(ammo_ecs_derive::Component, Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[ammo(
+#[derive(
+    ammo_ecs_derive::Component,
+    ammo_ecs_derive::HasIdentifiers,
+    Clone,
+    Debug,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+#[ammo_idents(
     namespace = "AMMO_STRING_NAMESPACE",
     id = "POSITION_ID_STR",
     int_namespace = "AMMO_INT_NAMESPACE",
