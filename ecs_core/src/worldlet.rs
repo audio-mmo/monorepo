@@ -11,7 +11,7 @@
 //! this somewhat difficult.  If a system is able to use parallelism specifically within this worldlet, it can do so via
 //! Rayon.
 use anyhow::Result;
-use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
+use atomic_refcell::{AtomicRefCell};
 
 use crate::component::Component;
 use crate::store::Store;
@@ -33,7 +33,7 @@ pub struct Worldlet<StoreM: StoreMap, SysM: SystemMap> {
 impl<StoreM: StoreMap, SysM: SystemMap> Worldlet<StoreM, SysM> {
     fn register_system<S: System>(&mut self) {
         self.system_runners
-            .push(|w| w.get_system_mut::<S>().execute(w));
+            .push(|w| w.get_system::<S>().borrow_mut().execute(w));
         self.systems.register_system::<S>();
     }
 
@@ -45,12 +45,8 @@ impl<StoreM: StoreMap, SysM: SystemMap> Worldlet<StoreM, SysM> {
         self.stores.get_store()
     }
 
-    pub fn get_system<S: System>(&self) -> AtomicRef<S> {
+    pub fn get_system<S: System>(&self) -> &AtomicRefCell<S> {
         self.systems.get_system()
-    }
-
-    pub fn get_system_mut<S: System>(&self) -> AtomicRefMut<S> {
-        self.systems.get_system_mut()
     }
 
     pub fn run_systems(&self) -> Result<()> {
@@ -175,15 +171,15 @@ mod tests {
         worldlet.get_system::<System1>();
         worldlet.get_system::<System2>();
         worldlet.get_store::<Comp>();
-        worldlet.get_system_mut::<System1>();
-        worldlet.get_system_mut::<System2>();
+        worldlet.get_system::<System1>();
+        worldlet.get_system::<System2>();
     }
 
     #[test]
     fn test_running() {
         let worldlet = factory().build_worldlet();
         worldlet.run_systems().expect("Should run");
-        assert!(worldlet.get_system::<System1>().0);
-        assert!(worldlet.get_system::<System2>().0);
+        assert!(worldlet.get_system::<System1>().borrow().0);
+        assert!(worldlet.get_system::<System2>().borrow().0);
     }
 }

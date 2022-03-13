@@ -1,7 +1,7 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
+use atomic_refcell::{AtomicRefCell};
 
 use crate::system::System;
 
@@ -9,13 +9,8 @@ use crate::system::System;
 pub trait SystemMap: Sync + Send + 'static + Default {
     /// get a system.
     ///
-    /// Should panic if the system is borrowed mutably, or doesn't exist.
-    fn get_system<S: System>(&self) -> AtomicRef<S>;
-
-    /// Get a system mutably.
-    ///
-    /// Panics if the system is borrowed immutably or doesn't exist.
-    fn get_system_mut<S: System>(&self) -> AtomicRefMut<S>;
+    /// Should panic if the system isn't registered.
+    fn get_system<S: System>(&self) -> &AtomicRefCell<S>;
 
     /// Register a system with the map. Should be called once per system.
     fn register_system<S: System>(&mut self);
@@ -29,22 +24,12 @@ pub trait SystemMap: Sync + Send + 'static + Default {
 pub struct DynamicSystemMap(HashMap<TypeId, Box<dyn Any + Send + Sync + 'static>>);
 
 impl SystemMap for DynamicSystemMap {
-    fn get_system<S: System>(&self) -> AtomicRef<S> {
+    fn get_system<S: System>(&self) -> &AtomicRefCell<S> {
         self.0
             .get(&TypeId::of::<AtomicRefCell<S>>())
             .expect("Should exist")
             .downcast_ref::<AtomicRefCell<S>>()
             .expect("Should downcast")
-            .borrow()
-    }
-
-    fn get_system_mut<S: System>(&self) -> AtomicRefMut<S> {
-        self.0
-            .get(&TypeId::of::<AtomicRefCell<S>>())
-            .expect("Should exist")
-            .downcast_ref::<AtomicRefCell<S>>()
-            .expect("Should downcast")
-            .borrow_mut()
     }
 
     fn register_system<S: System>(&mut self) {
