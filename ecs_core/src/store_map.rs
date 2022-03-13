@@ -1,7 +1,7 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
+use atomic_refcell::{AtomicRefCell};
 
 use crate::component::Component;
 
@@ -12,15 +12,10 @@ use crate::version::Version;
 ///
 /// In order to allow for concurrency, we use AtomicRef and AtomicRefMut.
 pub trait StoreMap: Sync + Send + 'static + Default {
-    /// get a store, or insert an empty one.
+    /// get a store.
     ///
-    /// Should panic if the store is borrowed mutably.
-    fn get_store<C: Component>(&self) -> AtomicRef<Store<C, Version>>;
-
-    /// Get a store mutably, or insert an empty one.
-    ///
-    /// Panics if the store is borrowed immutably.
-    fn get_store_mut<C: Component>(&self) -> AtomicRefMut<Store<C, Version>>;
+    /// Should panic if the store isn't present.
+    fn get_store<C: Component>(&self) -> &AtomicRefCell<Store<C, Version>>;
 
     /// register a component with this map.
     ///
@@ -38,22 +33,12 @@ pub trait StoreMap: Sync + Send + 'static + Default {
 pub struct DynamicStoreMap(HashMap<TypeId, Box<dyn Any + Send + Sync + 'static>>);
 
 impl StoreMap for DynamicStoreMap {
-    fn get_store<C: Component>(&self) -> AtomicRef<Store<C>> {
+    fn get_store<C: Component>(&self) -> &AtomicRefCell<Store<C>> {
         self.0
             .get(&TypeId::of::<AtomicRefCell<Store<C>>>())
             .expect("Should exist")
             .downcast_ref::<AtomicRefCell<Store<C>>>()
-            .expect("Should downcast")
-            .borrow()
-    }
-
-    fn get_store_mut<C: Component>(&self) -> AtomicRefMut<Store<C>> {
-        self.0
-            .get(&TypeId::of::<AtomicRefCell<Store<C>>>())
-            .expect("Should exist")
-            .downcast_ref::<AtomicRefCell<Store<C>>>()
-            .expect("Should downcast")
-            .borrow_mut()
+            .expect("Store should be registered first")
     }
 
     fn register_component<C: Component>(&mut self) {

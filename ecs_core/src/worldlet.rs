@@ -10,10 +10,10 @@
 //! theory possible for systems, etc. to "escape" their zone, they should not do so, and the API is designed to make
 //! this somewhat difficult.  If a system is able to use parallelism specifically within this worldlet, it can do so via
 //! Rayon.
-use crate::component::Component;
 use anyhow::Result;
-use atomic_refcell::{AtomicRef, AtomicRefMut};
+use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 
+use crate::component::Component;
 use crate::store::Store;
 use crate::store_map::StoreMap;
 use crate::system::System;
@@ -41,12 +41,8 @@ impl<StoreM: StoreMap, SysM: SystemMap> Worldlet<StoreM, SysM> {
         self.stores.register_component::<C>();
     }
 
-    pub fn get_store<T: Component>(&self) -> AtomicRef<Store<T, Version>> {
+    pub fn get_store<T: Component>(&self) -> &AtomicRefCell<Store<T, Version>> {
         self.stores.get_store()
-    }
-
-    pub fn get_store_mut<T: Component>(&self) -> AtomicRefMut<Store<T, Version>> {
-        self.stores.get_store_mut()
     }
 
     pub fn get_system<S: System>(&self) -> AtomicRef<S> {
@@ -178,7 +174,7 @@ mod tests {
         worldlet.get_store::<Comp>();
         worldlet.get_system::<System1>();
         worldlet.get_system::<System2>();
-        worldlet.get_store_mut::<Comp>();
+        worldlet.get_store::<Comp>();
         worldlet.get_system_mut::<System1>();
         worldlet.get_system_mut::<System2>();
     }
