@@ -20,6 +20,26 @@ use crate::system::System;
 use crate::system_map::SystemMap;
 use crate::version::Version;
 
+/// Trait representing a system in an object-safe fashion.
+///
+/// We need to be able to do stuff to systems, but the system trait isn't actually object safe.  To get around this, we
+/// must use this trait to build up vtables of the operations we wish to perform.  We then use references to zero-sized
+/// statics to have references to the vtables.
+trait SystemVtable<WorldletT> {
+    fn execute(&self, worldlet: &WorldletT) -> Result<()>;
+}
+
+#[derive(Default)]
+struct VtableInstance<S>(std::marker::PhantomData<*mut S>);
+
+impl<S: System, StoreM: StoreMap, SystemM: SystemMap> SystemVtable<Worldlet<StoreM, SystemM>>
+    for VtableInstance<S>
+{
+    fn execute(&self, worldlet: &Worldlet<StoreM, SystemM>) -> Result<()> {
+        worldlet.get_system::<S>().borrow_mut().execute(worldlet)
+    }
+}
+
 pub struct Worldlet<StoreM: StoreMap, SysM: SystemMap> {
     stores: StoreM,
     systems: SysM,
@@ -27,13 +47,13 @@ pub struct Worldlet<StoreM: StoreMap, SysM: SystemMap> {
     /// Because we need to be generic over several type parameters, we use a vec of callbacks to know which systems to
     /// run.
     #[allow(clippy::type_complexity)]
-    system_runners: Vec<fn(&Worldlet<StoreM, SysM>) -> Result<()>>,
+    system_vtables: Vec<&'static dyn SystemVtable<Worldlet<StoreM, SysM>>>,
 }
 
 impl<StoreM: StoreMap, SysM: SystemMap> Worldlet<StoreM, SysM> {
     fn register_system<S: System>(&mut self) {
-        self.system_runners
-            .push(|w| w.get_system::<S>().borrow_mut().execute(w));
+        self.system_vtables
+            .push(&VtableInstance::<S>(std::marker::PhantomData));
         self.systems.register_system::<S>();
     }
 
@@ -50,15 +70,14 @@ impl<StoreM: StoreMap, SysM: SystemMap> Worldlet<StoreM, SysM> {
     }
 
     pub fn run_systems(&self) -> Result<()> {
-        for f in self.system_runners.iter() {
-            (*f)(self)?;
+        for f in self.system_vtables.iter() {
+            f.execute(self)?;
         }
 
         Ok(())
     }
 }
 
-/// A factory which can produce worldlets repeatedly.
 #[derive(Default)]
 pub struct WorldletFactory<StoreM: StoreMap, SysM: SystemMap> {
     /// Things we will do to the new worldlet.
@@ -90,7 +109,7 @@ impl<StoreM: StoreMap, SysM: SystemMap> WorldletFactory<StoreM, SysM> {
         let mut worldlet = Worldlet {
             stores: Default::default(),
             systems: Default::default(),
-            system_runners: Default::default(),
+            system_vtables: Default::default(),
         };
         for o in self.ops.iter() {
             (*o)(&mut worldlet);
