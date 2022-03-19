@@ -4,37 +4,37 @@ use crate::object_id::ObjectId;
 use crate::version::Version;
 
 pub struct Store<T, M = Version> {
-    keys: Vec<ObjectId>,
-    values: Vec<T>,
-    meta: Vec<Meta<M>>,
-    pending_inserts: BTreeMap<ObjectId, PendingInsertRecord<T, M>>,
-    current_meta: M,
+    pub(super) keys: Vec<ObjectId>,
+    pub(super) values: Vec<T>,
+    pub(super) meta: Vec<Meta<M>>,
+    pub(super) pending_inserts: BTreeMap<ObjectId, PendingInsertRecord<T, M>>,
+    pub(super) current_meta: M,
 }
 
 #[derive(Debug, Copy, Clone, Eq, Ord, PartialEq, PartialOrd, Hash)]
-enum Meta<M> {
+pub(super) enum Meta<M> {
     Alive(M),
     Dead,
 }
 
-struct PendingInsertRecord<T, M> {
-    value: T,
-    meta: Meta<M>,
+pub(super) struct PendingInsertRecord<T, M> {
+    pub(super) value: T,
+    pub(super) meta: Meta<M>,
 }
 
 pub struct StoreRef<'a, T, M> {
-    value: &'a T,
-    meta: PhantomData<&'a M>,
+    pub(super) value: &'a T,
+    pub(super) meta: PhantomData<&'a M>,
 }
 
 pub struct StoreRefMut<'a, T, M: Clone> {
-    current_meta: &'a M,
-    value: &'a mut T,
-    meta: &'a mut Meta<M>,
+    pub(super) current_meta: &'a M,
+    pub(super) value: &'a mut T,
+    pub(super) meta: &'a mut Meta<M>,
     /// Whether this mutable reference was actually mutated, or just constructed.
     ///
     /// Set to true in DerefMut.
-    mutated: bool,
+    pub(super) mutated: bool,
 }
 
 impl<'a, T, M> std::ops::Deref for StoreRef<'a, T, M> {
@@ -78,15 +78,15 @@ impl<'a, T, M: Clone> StoreRefMut<'a, T, M> {
     }
 }
 impl<M> Meta<M> {
-    fn is_alive(&self) -> bool {
+    pub(super) fn is_alive(&self) -> bool {
         matches!(self, Meta::Alive(_))
     }
 
-    fn is_dead(&self) -> bool {
+    pub(super) fn is_dead(&self) -> bool {
         !self.is_alive()
     }
 
-    fn get_alive_meta(&self) -> Option<&M> {
+    pub(super) fn get_alive_meta(&self) -> Option<&M> {
         match self {
             Meta::Alive(m) => Some(m),
             _ => None,
@@ -108,7 +108,7 @@ impl<T, M: Default> Default for Store<T, M> {
 
 /// Internal enum for the possible results from doing a search for an index given an id: we found it, we need to insert
 /// before the specified index, or we found a tombstone.
-enum SearchResult {
+pub(super) enum SearchResult {
     Found(usize),
     InsertBefore(usize),
     TombstoneAvailable(usize),
@@ -131,7 +131,7 @@ impl<T, M: Clone> Store<T, M> {
         self.current_meta = meta;
     }
 
-    fn compact(&mut self) {
+    pub(super) fn compact(&mut self) {
         let mut key_ind = 0;
         self.keys.retain(|_| {
             let ret = self.meta[key_ind].is_alive();
@@ -159,7 +159,7 @@ impl<T, M: Clone> Store<T, M> {
         self.meta.shrink_to_fit();
     }
 
-    fn search_index_from_id(&self, id: &ObjectId) -> SearchResult {
+    pub(super) fn search_index_from_id(&self, id: &ObjectId) -> SearchResult {
         let ind = self.keys.binary_search(id);
         match ind {
             Ok(i) | Err(i) if i < self.meta.len() && self.meta[i].is_dead() => {
