@@ -12,7 +12,6 @@ use crate::parser::*;
 enum TestOps {
     /// Add a message to our queue of messages.
     Message {
-        kind: MessageKind,
         identifier: MessageIdentifier,
         data: Vec<u8>,
     },
@@ -41,8 +40,8 @@ proptest! {
 
         for o in ops  {
             match o {
-                TestOps::Message{kind, identifier, data} => {
-                    let m = Message::new(kind, identifier, Cow::Owned(data));
+                TestOps::Message{identifier, data} => {
+                    let m = Message::new(identifier, Cow::Owned(data));
                     expected_messages.push(m.clone());
                     unfed_messages.push(m.clone());
                 },

@@ -4,26 +4,13 @@
 use bytes::{Buf, BufMut};
 
 /// Size of the header, excluding length.
-pub(crate) const HEADER_SIZE: u64 = 4;
+pub(crate) const HEADER_SIZE: u64 = 3;
 
 #[derive(Copy, Clone, Eq, Ord, PartialEq, PartialOrd, Debug)]
 #[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 pub(crate) struct Header {
-    pub(crate) kind: HeaderKind,
     pub(crate) namespace: u8,
     pub(crate) id: u16,
-}
-
-#[derive(Copy, Clone, Eq, Ord, PartialEq, PartialOrd, Debug)]
-#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
-pub(crate) enum HeaderKind {
-    NotSimulation,
-    Command,
-    Event,
-    Component,
-    VisibilitySet,
-    ClientTick,
-    ServerTick,
 }
 
 #[derive(Debug, derive_more::Display, thiserror::Error)]
@@ -33,40 +20,8 @@ pub enum HeaderDecodingError {
     InvalidHeaderKind(u8),
 }
 
-/// Used to convert header kinds to/from ints.  Must contain all header kinds.  This makes sure that we never
-/// accidentally mismatch the to_int and from_int implementatison below.
-static HEADER_LOOKUP_TABLE: [HeaderKind; 7] = [
-    HeaderKind::NotSimulation,
-    HeaderKind::Command,
-    HeaderKind::Event,
-    HeaderKind::Component,
-    HeaderKind::VisibilitySet,
-    HeaderKind::ClientTick,
-    HeaderKind::ServerTick,
-];
-
-impl HeaderKind {
-    fn as_int(&self) -> u8 {
-        for (i, v) in HEADER_LOOKUP_TABLE.iter().enumerate() {
-            if *v == *self {
-                return i as u8;
-            }
-        }
-
-        panic!("Header kind not found in lookup table.");
-    }
-
-    fn from_int(val: u8) -> Result<HeaderKind, HeaderDecodingError> {
-        HEADER_LOOKUP_TABLE
-            .get(val as usize)
-            .copied()
-            .ok_or(HeaderDecodingError::InvalidHeaderKind(val))
-    }
-}
-
 impl Header {
     pub(crate) fn encode(&self, dest: &mut impl BufMut) {
-        dest.put_u8(self.kind.as_int());
         dest.put_u8(self.namespace);
         dest.put_u16(self.id);
     }
@@ -76,15 +31,10 @@ impl Header {
             return Err(HeaderDecodingError::NotEnoughData);
         }
 
-        let kind = HeaderKind::from_int(source.get_u8())?;
         let namespace = source.get_u8();
         let id = source.get_u16();
 
-        Ok(Header {
-            id,
-            kind,
-            namespace,
-        })
+        Ok(Header { id, namespace })
     }
 }
 

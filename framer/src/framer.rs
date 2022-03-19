@@ -35,7 +35,6 @@ impl Framer {
         use bytes::BufMut;
 
         let header = header::Header {
-            kind: message.kind.into(),
             namespace: message.identifier.namespace,
             id: message.identifier.id,
         };

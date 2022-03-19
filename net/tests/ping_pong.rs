@@ -7,7 +7,7 @@ use std::str::FromStr;
 use anyhow::Result;
 use log::*;
 
-use ammo_framer::{Message, MessageIdentifier, MessageKind};
+use ammo_framer::{Message, MessageIdentifier};
 
 use ammo_net::*;
 
@@ -42,7 +42,6 @@ async fn ping_pong_impl() -> Result<()> {
 
     // The server won't connect until we send a message.
     let msg = Message::new(
-        MessageKind::Event,
         MessageIdentifier {
             namespace: 1,
             id: 2,

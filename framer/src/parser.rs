@@ -120,7 +120,6 @@ impl Parser {
                 namespace: header.namespace,
                 id: header.id,
             },
-            kind: header.kind.into(),
             data: Cow::Borrowed(&buf[..(length - header::HEADER_SIZE) as usize]),
         };
 
