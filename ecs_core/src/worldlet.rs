@@ -14,8 +14,8 @@ use anyhow::Result;
 use atomic_refcell::AtomicRefCell;
 
 use crate::component::Component;
-use crate::store::Store;
-use crate::store_map::StoreMap;
+use crate::stores::Store;
+use crate::stores::StoreMap;
 use crate::system::System;
 use crate::system_map::SystemMap;
 use crate::version::Version;
@@ -123,7 +123,7 @@ impl<StoreM: StoreMap, SysM: SystemMap> WorldletFactory<StoreM, SysM> {
 mod tests {
     use super::*;
 
-    use crate::store_map::DynamicStoreMap;
+    use crate::stores::DynamicStoreMap;
     use crate::system_map::DynamicSystemMap;
 
     use crate::HasIdentifiers;

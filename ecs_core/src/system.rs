@@ -12,7 +12,7 @@ use std::any::Any;
 
 use anyhow::Result;
 
-use crate::store_map::StoreMap;
+use crate::stores::StoreMap;
 use crate::system_map::SystemMap;
 use crate::worldlet::Worldlet;
 

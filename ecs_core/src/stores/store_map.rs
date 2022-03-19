@@ -5,7 +5,7 @@ use atomic_refcell::AtomicRefCell;
 
 use crate::component::Component;
 
-use crate::store::Store;
+use crate::stores::Store;
 use crate::version::Version;
 
 /// The StoreMap trait represents maps of stores.
