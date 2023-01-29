@@ -1,23 +1,21 @@
 [workspace]
 
 members = [
-    "cached_hash_map",
-    "chunked_grid",
+
+
     "client",
     "datastore",
     "ecs",
     "ecs_components",
     "ecs_core",
     "ecs_derive",
-    "framer",
+
     "frontend",
     "logging",
-    "net",
-    "nzslab",
+
+
     "physics",
     "protos",
-    "self_organizing_list",
-    "sonifier",
 ]
 
 [profile.bench]
