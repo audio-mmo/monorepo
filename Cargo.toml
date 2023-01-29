@@ -1,22 +1,6 @@
 [workspace]
 
-members = [
-
-
-    "client",
-    "datastore",
-    "ecs",
-    "ecs_components",
-    "ecs_core",
-    "ecs_derive",
-
-    "frontend",
-    "logging",
-
-
-    "physics",
-    "protos",
-]
+members = ["crates/*"]
 
 [profile.bench]
 lto = true
