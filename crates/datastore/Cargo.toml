@@ -6,26 +6,23 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.52"
-itertools = "0.10.3"
-lazy_static = "1.4.0"
-log = "0.4.14"
-regex = "1.5.4"
-rusqlite = { version = "0.26.3", features = ["bundled", "i128_blob"] }
-serde = { version = "1.0.132", features = ["derive"] }
-serde_json = { version = "1.0.73", features = [
-    "default",
-    "arbitrary_precision",
-] }
-smallvec = "1.7.0"
-tera = "1.15.0"
+anyhow.workspace = true
+itertools.workspace = true
+lazy_static.workspace = true
+log.workspace = true
+regex.workspace = true
+rusqlite = { workspace = true, features = ["bundled", "i128_blob"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["default", "arbitrary_precision"] }
+smallvec.workspace = true
+tera.workspace = true
 
 [dev-dependencies]
-criterion = "0.3.5"
-pretty_assertions = "1.0.0"
-proptest = "1.0.0"
-proptest-derive = "0.3.0"
-tempfile = "3.2.0"
+criterion.workspace = true
+pretty_assertions.workspace = true
+proptest-derive.workspace = true
+proptest.workspace = true
+tempfile.workspace = true
 
 [[bench]]
 name = "inserting"

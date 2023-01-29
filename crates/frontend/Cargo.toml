@@ -12,9 +12,8 @@ crate-type = ["cdylib"]
 python-source = "python"
 
 [dependencies]
-ammo_client = { path = "../client" }
-ammo_protos = { path = "../protos" }
-
-pyo3 = { version = "0.15.1", features = ["anyhow", "extension-module"] }
-anyhow = "1.0.52"
-prost = "0.9.0"
+ammo_client.workspace = true
+ammo_protos.workspace = true
+pyo3 = { workspace = true, features = ["anyhow", "extension-module"] }
+anyhow.workspace = true
+prost.workspace = true

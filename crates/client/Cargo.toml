@@ -6,13 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ammo_logging = { path = "../logging" }
-ammo_protos = { path = "../protos" }
-anyhow = "1.0.52"
-arc-swap = "1.5.0"
-crossbeam = "0.8.1"
-log = "0.4.14"
-time = "0.3.5"
-uuid = { version = "0.8.2", features = ["v4"] }
+ammo_logging.workspace = true
+ammo_protos.workspace = true
+anyhow.workspace = true
+arc-swap.workspace = true
+crossbeam.workspace = true
+log.workspace = true
+time.workspace = true
+uuid = { workspace = true, features = ["v4"] }
 
 [features]
