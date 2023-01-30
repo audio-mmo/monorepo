@@ -41,6 +41,33 @@ impl MortonCode {
     pub fn decode(&self) -> (u16, u16) {
         (collapse_u32(self.data), collapse_u32(self.data >> 1))
     }
+
+    /// Expand this morton code into two-bit pairs.
+    ///
+    /// Each pair is `yx` where the high bit is set if the high bit would have been set in y, and so on.  This is useful primarily as indices into quadtrees.
+    fn as_quadrants(&self) -> [u8; 16] {
+        let mut out: [u8; 16] = Default::default();
+
+        for (i, dest) in out.iter_mut().enumerate() {
+            let shift = 32 - i * 2 - 2;
+            let mask = 3 << shift;
+            *dest = ((self.data & mask) >> shift) as u8;
+        }
+
+        out
+    }
+
+    fn from_quadrants(quadrants: [u8; 16]) -> MortonCode {
+        let data = quadrants
+            .into_iter()
+            .enumerate()
+            .map(|(i, x)| {
+                let shift = 32 - i * 2 - 2;
+                (x as u32) << shift
+            })
+            .fold(0, |a, b| a | b);
+        MortonCode { data }
+    }
 }
 
 #[cfg(test)]
@@ -67,6 +94,38 @@ mod tests {
             let enc = MortonCode::encode(x, y);
             let (dec_x, dec_y) = enc.decode();
             assert_eq!((x, y), (dec_x, dec_y));
+        }
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn test_quadrants_inverses(x: u16, y: u16) {
+            let code = MortonCode::encode(x, y);
+            let quadrants = code.as_quadrants();
+            let code2 = MortonCode::from_quadrants(quadrants);
+            assert_eq!((x, y), code2.decode());
+        }
+    }
+
+    fn boring_quadrant_computation(x: u16, y: u16) -> [u8; 16] {
+        let mut out = [0; 16];
+        for (i, dest) in out.iter_mut().enumerate() {
+            let maskshift = 16 - i - 1;
+            let mask = 1 << maskshift;
+            let xbit = ((x & mask) != 0) as u8;
+            let ybit = ((y & mask) != 0) as u8;
+            *dest = (ybit << 1) | xbit;
+        }
+
+        out
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn test_quadrants_against_boring(x: u16, y: u16) {
+            let complicated = MortonCode::encode(x, y).as_quadrants();
+            let boring = boring_quadrant_computation(x, y);
+            assert_eq!(complicated, boring);
         }
     }
 }
