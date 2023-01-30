@@ -1,5 +1,5 @@
 //! An axis-aligned bounding box.
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 use crate::*;
 

@@ -1,5 +1,5 @@
 //! A simple circle.
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 use crate::*;
 
