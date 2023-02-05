@@ -2,7 +2,6 @@
 //! A crate for physics related modules.
 
 mod aabb;
-mod circle;
 mod collision_tests;
 mod morton;
 mod ray;
@@ -11,7 +10,6 @@ mod shape;
 mod v2;
 
 pub use aabb::*;
-pub use circle::*;
 pub use ray::*;
 pub use raycasting::*;
 pub use shape::*;

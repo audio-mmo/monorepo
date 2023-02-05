@@ -1,7 +1,6 @@
 use crate::*;
 
 pub(crate) mod ray_aabb;
-pub(crate) mod ray_circle;
 pub mod tile_grid;
 
 /// The result of performing a raycasting test.
@@ -16,5 +15,4 @@ pub struct RaycastingResult {
 }
 
 pub(crate) use ray_aabb::*;
-pub(crate) use ray_circle::*;
 pub use tile_grid::*;
