@@ -12,6 +12,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.42"
 arrayvec = "0.7.1"
+slab.workspace = true
 smallvec = "1.6.1"
 
 [dev-dependencies]

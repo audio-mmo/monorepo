@@ -38,6 +38,7 @@ regex = "1.5.4"
 rusqlite = { version = "0.26.3", features = ["bundled", "i128_blob"] }
 serde = "1.0.132"
 serde_json = "1.0.73"
+slab = "0.4.7"
 smallvec = "1.7.0"
 tempfile = "3.2.0"
 tera = "1.15.0"
