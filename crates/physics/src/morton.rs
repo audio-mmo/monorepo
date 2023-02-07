@@ -2,7 +2,7 @@
 use proptest::strategy::Strategy;
 
 /// A Morton-encoded pair of u16s, representing x/y coordinates.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, derive_more::Display)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, derive_more::Display)]
 #[display(fmt=:"{:x}", code)]
 pub struct MortonCode {
     /// Encoded as `y << 1 | x`
@@ -23,7 +23,7 @@ pub struct MortonPrefix {
     /// Index of the first common bit in the integer, starting from the least significant. AN empty prefix is 32.  A full prefix is 0.
 
     // the strategy here is reversed with prop_flat_map because it must shrink toward 32.
-    #[proptest(strategy = "(0u8..32).prop_map(|x| 32 - x)")]
+    #[proptest(strategy = "(0u8..16).prop_map(|x| 32 - 2 * x)")]
     first_valid_bit: u8,
 }
 
@@ -143,8 +143,8 @@ impl std::cmp::PartialEq for MortonPrefix {
         }
 
         // We need to zero out the lower bits, which are intentionally left to have any arbitrary value.
-        let mask = u32::MAX << self.first_valid_bit;
-        (self.code & mask) != (other.code & mask)
+        let mask = (u64::MAX << self.first_valid_bit) as u32;
+        (self.code & mask) == (other.code & mask)
     }
 }
 
@@ -155,6 +155,15 @@ impl std::fmt::Display for MortonPrefix {
         write!(f, "{:x}/{}", self.code, 32 - self.first_valid_bit)
     }
 }
+
+impl std::hash::Hash for MortonPrefix {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_u8(self.first_valid_bit);
+        let mask = (u64::MAX << self.first_valid_bit) as u32;
+        state.write_u32(self.code & mask);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -275,6 +284,96 @@ mod tests {
             let unpacked = merged.unpack().collect::<Vec<_>>();
             let expected = boring_morton_prefix((x1, y1), (x2, y2));
             assert_eq!(unpacked, expected);
+        }
+    }
+
+    #[test]
+    fn test_hash_eq_simple() {
+        use std::hash::{Hash, Hasher};
+
+        let tests = vec![
+            (
+                MortonPrefix {
+                    code: 0,
+                    first_valid_bit: 32,
+                },
+                MortonPrefix {
+                    code: 0,
+                    first_valid_bit: 32,
+                },
+                true,
+            ),
+            (
+                MortonPrefix {
+                    code: 0,
+                    first_valid_bit: 32,
+                },
+                MortonPrefix {
+                    code: u32::MAX,
+                    first_valid_bit: 32,
+                },
+                true,
+            ),
+            (
+                MortonPrefix {
+                    code: 0,
+                    first_valid_bit: 0,
+                },
+                MortonPrefix {
+                    code: 1,
+                    first_valid_bit: 0,
+                },
+                false,
+            ),
+            // Check that low bits dont' matter.
+            (
+                MortonPrefix {
+                    code: 0xffff0000,
+                    first_valid_bit: 16,
+                },
+                MortonPrefix {
+                    code: 0xffffffff,
+                    first_valid_bit: 16,
+                },
+                true,
+            ),
+        ];
+
+        for (a, b, should_eq) in tests {
+            if should_eq {
+                assert_eq!(a, b);
+            } else {
+                assert_ne!(a, b);
+            }
+
+            let a_h = {
+                let mut hasher = std::collections::hash_map::DefaultHasher::default();
+                a.hash(&mut hasher);
+                hasher.finish()
+            };
+
+            let b_h = {
+                let mut hasher = std::collections::hash_map::DefaultHasher::default();
+                b.hash(&mut hasher);
+                hasher.finish()
+            };
+
+            if should_eq {
+                assert_eq!(a_h, b_h, "{} vs {}", a, b);
+            } else {
+                assert_ne!(a_h, b_h, "{} vs {}", a, b);
+            }
+        }
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn test_prefix_hashing_fuzz(prefixes: Vec<MortonPrefix>) {
+            use std::collections::HashSet;
+            let s: HashSet<MortonPrefix> = prefixes.iter().cloned().collect();
+            for p in prefixes.iter() {
+                assert!(s.contains(p));
+            }
         }
     }
 }

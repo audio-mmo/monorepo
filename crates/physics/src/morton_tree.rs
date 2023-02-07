@@ -29,7 +29,7 @@ impl SlabRef {
     }
 
     fn get_key(&self) -> usize {
-        self.0.get()
+        self.0.get() - 1
     }
 }
 
@@ -123,14 +123,11 @@ impl<T> MortonTree<T> {
     /// Delete a given value from the tree.
     ///
     /// This does not clear the nodes. After bulk operations, call [Self::prune_empty].
-    pub fn delete(&mut self, prefix: &MortonPrefix) -> Option<T> {
+    pub fn remove(&mut self, prefix: &MortonPrefix) -> Option<T> {
         let node = self.slab_ref_for_node(prefix)?;
-        if self.value_slab.contains(node.get_key()) {
-            self.node_slab[node.get_key()].value = None;
-            Some(self.value_slab.remove(node.get_key()))
-        } else {
-            None
-        }
+        let vk = self.node_slab[node.get_key()].value?;
+        self.node_slab[node.get_key()].value = None;
+        Some(self.value_slab.remove(vk.get_key()))
     }
 
     /// Compact the subtree starting at root.
@@ -170,5 +167,57 @@ impl<T> MortonTree<T> {
 impl<T> Default for MortonTree<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    use proptest::prelude::*;
+    use proptest::{prop_assert, prop_assert_eq};
+
+    use std::collections::HashSet;
+
+    // Fuzz the tree.
+    //
+    // Unfortunately it is hard to generate interesting cases.  For now we'll just proptest the hell out of it.
+    proptest! {
+        #![proptest_config(proptest::prelude::ProptestConfig {
+            cases: 10000,
+            ..Default::default()
+        })]
+
+        #[test]
+        fn test_fuzz(
+            prefixes in proptest::collection::vec(
+                proptest::arbitrary::any::<MortonPrefix>(),
+                1..10000usize
+            )
+        ) {
+            let mut tree = MortonTree::new();
+
+            for p in prefixes.iter().cloned() {
+                tree.insert(&p, p);
+            }
+
+            for p in prefixes.iter() {
+                prop_assert_eq!(tree.get(p), Some(p));
+            }
+
+            let unique_prefixes = prefixes.iter().cloned().collect::<HashSet<_>>();
+            for p in unique_prefixes.iter() {
+                tree.remove(p).expect("Value should be in the tree");
+                prop_assert!(tree.get(p).is_none());
+            }
+
+            for p in unique_prefixes.iter() {
+                prop_assert!(tree.get(p).is_none());
+            }
+
+            prop_assert_eq!(tree.num_values(), 0);
+
+        }
     }
 }
