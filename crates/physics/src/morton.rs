@@ -1,6 +1,9 @@
 //! An implementation of [Morton Coding](https://en.wikipedia.org/wiki/Z-order_curve).
+use proptest::strategy::Strategy;
 
 /// A Morton-encoded pair of u16s, representing x/y coordinates.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, derive_more::Display)]
+#[display(fmt=:"{:x}", code)]
 pub struct MortonCode {
     /// Encoded as `y << 1 | x`
     data: u32,
@@ -13,10 +16,14 @@ pub struct MortonCode {
 ///
 /// Our prefixes are arrays of (0..4) values, where the high bit is set if the y bit in the morton code is nonzero, and
 /// the low bit is set if the x coordinate is nonzero.  We never work in or return just one bit.
+#[derive(Copy, Clone, Debug, proptest_derive::Arbitrary)]
 pub struct MortonPrefix {
     code: u32,
 
     /// Index of the first common bit in the integer, starting from the least significant. AN empty prefix is 32.  A full prefix is 0.
+
+    // the strategy here is reversed with prop_flat_map because it must shrink toward 32.
+    #[proptest(strategy = "(0u8..32).prop_map(|x| 32 - x)")]
     first_valid_bit: u8,
 }
 
@@ -129,6 +136,25 @@ impl MortonPrefix {
     }
 }
 
+impl std::cmp::PartialEq for MortonPrefix {
+    fn eq(&self, other: &Self) -> bool {
+        if self.first_valid_bit != other.first_valid_bit {
+            return false;
+        }
+
+        // We need to zero out the lower bits, which are intentionally left to have any arbitrary value.
+        let mask = u32::MAX << self.first_valid_bit;
+        (self.code & mask) != (other.code & mask)
+    }
+}
+
+impl std::cmp::Eq for MortonPrefix {}
+
+impl std::fmt::Display for MortonPrefix {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:x}/{}", self.code, 32 - self.first_valid_bit)
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
