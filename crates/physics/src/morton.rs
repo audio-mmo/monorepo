@@ -1,5 +1,5 @@
 //! An implementation of [Morton Coding](https://en.wikipedia.org/wiki/Z-order_curve).
-use proptest::strategy::Strategy;
+use proptest::{arbitrary::Arbitrary, strategy::Strategy};
 
 /// A Morton-encoded pair of u16s, representing x/y coordinates.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, derive_more::Display)]
@@ -14,16 +14,14 @@ pub struct MortonCode {
 /// For example, if the morton codes are the corners of a box, their prefix is the path in a quadtree which leads to the
 /// smallest node completely containing that box.
 ///
-/// Our prefixes are arrays of (0..4) values, where the high bit is set if the y bit in the morton code is nonzero, and
-/// the low bit is set if the x coordinate is nonzero.  We never work in or return just one bit.
-#[derive(Copy, Clone, Debug, proptest_derive::Arbitrary)]
+/// Our prefixes are arrays of (0..4) values packed into a 32-bit int, where the high bit is set if the y bit in the
+/// morton code is nonzero, and the low bit is set if the x coordinate is nonzero.  We never work in or return just one
+/// bit.
+#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Hash)]
 pub struct MortonPrefix {
     code: u32,
 
     /// Index of the first common bit in the integer, starting from the least significant. AN empty prefix is 32.  A full prefix is 0.
-
-    // the strategy here is reversed with prop_flat_map because it must shrink toward 32.
-    #[proptest(strategy = "(0u8..16).prop_map(|x| 32 - 2 * x)")]
     first_valid_bit: u8,
 }
 
@@ -116,13 +114,14 @@ impl MortonPrefix {
             .max(other.first_valid_bit as u32);
         // We now bump candidate up to the next multiple of 2, since we never deal in fractional bits.
         let actual = (candidate + 1) & (!1);
+        let mask = (u64::MAX << actual) as u32;
         MortonPrefix {
-            code: self.code,
+            code: self.code & mask,
             first_valid_bit: actual.try_into().unwrap(),
         }
     }
 
-    /// Unpack this prefix into an iterator of `u8` of the form `yx` where y and x aree bits whicha re set if the
+    /// Unpack this prefix into an iterator of `u8` of the form `yx` where y and x aree bits which are set if the
     /// appropriate bit is set in the prefix.
     pub fn unpack(&self) -> impl Iterator<Item = u8> {
         let num_elems = (32 - self.first_valid_bit) / 2;
@@ -136,31 +135,28 @@ impl MortonPrefix {
     }
 }
 
-impl std::cmp::PartialEq for MortonPrefix {
-    fn eq(&self, other: &Self) -> bool {
-        if self.first_valid_bit != other.first_valid_bit {
-            return false;
-        }
-
-        // We need to zero out the lower bits, which are intentionally left to have any arbitrary value.
-        let mask = (u64::MAX << self.first_valid_bit) as u32;
-        (self.code & mask) == (other.code & mask)
-    }
-}
-
-impl std::cmp::Eq for MortonPrefix {}
-
 impl std::fmt::Display for MortonPrefix {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:x}/{}", self.code, 32 - self.first_valid_bit)
     }
 }
 
-impl std::hash::Hash for MortonPrefix {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_u8(self.first_valid_bit);
-        let mask = (u64::MAX << self.first_valid_bit) as u32;
-        state.write_u32(self.code & mask);
+impl Arbitrary for MortonPrefix {
+    type Parameters = ();
+    type Strategy = proptest::strategy::BoxedStrategy<MortonPrefix>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        let first_valid_bit = (0..16u8).prop_map(|x| 32 - x * 2);
+        let code = 0..u32::MAX;
+        (first_valid_bit, code)
+            .prop_map(|(v, c)| {
+                let mask = (u64::MAX << v) as u32;
+                MortonPrefix {
+                    code: c & mask,
+                    first_valid_bit: v,
+                }
+            })
+            .boxed()
     }
 }
 
@@ -168,17 +164,19 @@ impl std::hash::Hash for MortonPrefix {
 mod tests {
     use super::*;
 
+    use proptest::prelude::*;
+
     proptest::proptest! {
         #[test]
         fn test_odd_bits_are_zero(x: u16) {
-            assert_eq!(expand_u16(x) & 0xaaaaaaaa, 0);
+            prop_assert_eq!(expand_u16(x) & 0xaaaaaaaa, 0);
         }
     }
 
     proptest::proptest! {
         #[test]
         fn test_expand_collapse_inverse(val: u16) {
-            assert_eq!(collapse_u32(expand_u16(val)), val);
+            prop_assert_eq!(collapse_u32(expand_u16(val)), val);
         }
     }
 
@@ -187,7 +185,7 @@ mod tests {
         fn test_encode_decode_inverse(x: u16, y: u16) {
             let enc = MortonCode::encode(x, y);
             let (dec_x, dec_y) = enc.decode();
-            assert_eq!((x, y), (dec_x, dec_y));
+            prop_assert_eq!((x, y), (dec_x, dec_y));
         }
     }
 
@@ -197,7 +195,7 @@ mod tests {
             let code = MortonCode::encode(x, y);
             let quadrants = code.as_quadrants();
             let code2 = MortonCode::from_quadrants(quadrants);
-            assert_eq!((x, y), code2.decode());
+            prop_assert_eq!((x, y), code2.decode());
         }
     }
 
@@ -219,7 +217,7 @@ mod tests {
         fn test_quadrants_against_boring(x: u16, y: u16) {
             let complicated = MortonCode::encode(x, y).as_quadrants();
             let boring = boring_quadrant_computation(x, y);
-            assert_eq!(complicated, boring);
+            prop_assert_eq!(complicated, boring);
         }
     }
 
@@ -283,97 +281,7 @@ mod tests {
             let merged = p1.merge(p2);
             let unpacked = merged.unpack().collect::<Vec<_>>();
             let expected = boring_morton_prefix((x1, y1), (x2, y2));
-            assert_eq!(unpacked, expected);
-        }
-    }
-
-    #[test]
-    fn test_hash_eq_simple() {
-        use std::hash::{Hash, Hasher};
-
-        let tests = vec![
-            (
-                MortonPrefix {
-                    code: 0,
-                    first_valid_bit: 32,
-                },
-                MortonPrefix {
-                    code: 0,
-                    first_valid_bit: 32,
-                },
-                true,
-            ),
-            (
-                MortonPrefix {
-                    code: 0,
-                    first_valid_bit: 32,
-                },
-                MortonPrefix {
-                    code: u32::MAX,
-                    first_valid_bit: 32,
-                },
-                true,
-            ),
-            (
-                MortonPrefix {
-                    code: 0,
-                    first_valid_bit: 0,
-                },
-                MortonPrefix {
-                    code: 1,
-                    first_valid_bit: 0,
-                },
-                false,
-            ),
-            // Check that low bits dont' matter.
-            (
-                MortonPrefix {
-                    code: 0xffff0000,
-                    first_valid_bit: 16,
-                },
-                MortonPrefix {
-                    code: 0xffffffff,
-                    first_valid_bit: 16,
-                },
-                true,
-            ),
-        ];
-
-        for (a, b, should_eq) in tests {
-            if should_eq {
-                assert_eq!(a, b);
-            } else {
-                assert_ne!(a, b);
-            }
-
-            let a_h = {
-                let mut hasher = std::collections::hash_map::DefaultHasher::default();
-                a.hash(&mut hasher);
-                hasher.finish()
-            };
-
-            let b_h = {
-                let mut hasher = std::collections::hash_map::DefaultHasher::default();
-                b.hash(&mut hasher);
-                hasher.finish()
-            };
-
-            if should_eq {
-                assert_eq!(a_h, b_h, "{} vs {}", a, b);
-            } else {
-                assert_ne!(a_h, b_h, "{} vs {}", a, b);
-            }
-        }
-    }
-
-    proptest::proptest! {
-        #[test]
-        fn test_prefix_hashing_fuzz(prefixes: Vec<MortonPrefix>) {
-            use std::collections::HashSet;
-            let s: HashSet<MortonPrefix> = prefixes.iter().cloned().collect();
-            for p in prefixes.iter() {
-                assert!(s.contains(p));
-            }
+            prop_assert_eq!(unpacked, expected);
         }
     }
 }
