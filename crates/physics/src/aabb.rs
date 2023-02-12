@@ -61,10 +61,6 @@ impl Aabb {
         }
     }
 
-    pub fn get_bounding_box(&self) -> Aabb {
-        *self
-    }
-
     /// get the squared distance to a specific point.
     pub fn distance_to_point_squared(&self, point: &V2<f64>) -> f64 {
         // The closest point on a box to a point is the clamped value of the point itself.
