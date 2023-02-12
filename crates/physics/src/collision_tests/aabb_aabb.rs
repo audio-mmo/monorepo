@@ -1,11 +1,16 @@
 //! The AABB-AABB collision test.
+use num::Num;
+
 use crate::*;
 
-pub(crate) fn aabb_aabb_test(box1: &Aabb<f64>, box2: &Aabb<f64>) -> bool {
-    let min_x = box1.get_p1().x.min(box2.get_p1().x);
-    let max_x = box1.get_p2().x.max(box2.get_p2().x);
-    let min_y = box1.get_p1().y.min(box2.get_p1().y);
-    let max_y = box1.get_p2().y.max(box2.get_p2().y);
+pub(crate) fn aabb_aabb_test<T>(box1: &Aabb<T>, box2: &Aabb<T>) -> bool
+where
+    T: Num + Copy + std::cmp::PartialOrd,
+{
+    let min_x = num::traits::clamp_max(box1.get_p1().x, box2.get_p1().x);
+    let max_x = num::traits::clamp_min(box1.get_p2().x, box2.get_p2().x);
+    let min_y = num::traits::clamp_max(box1.get_p1().y, box2.get_p1().y);
+    let max_y = num::traits::clamp_min(box1.get_p2().y, box2.get_p2().y);
     let dist_x = max_x - min_x;
     let dist_y = max_y - min_y;
 
@@ -27,7 +32,7 @@ mod tests {
         let max_x = b1.get_p2().x.max(b2.get_p2().x);
         let min_y = b1.get_p1().y.min(b2.get_p1().y);
         let max_y = b1.get_p2().y.max(b2.get_p2().y);
-        (max_x - min_x) < not_touching_width && (max_y - min_y) < not_touching_height
+        (max_x - min_x) <= not_touching_width && (max_y - min_y) <= not_touching_height
     }
 
     #[test]
