@@ -42,18 +42,44 @@ impl<T> MortonTree<T> {
         }
     }
 
-    fn slab_ref_for_node(&self, prefix: &MortonPrefix) -> Option<SlabRef> {
+    fn traverse_to_prefix_inner(
+        &self,
+        prefix: &MortonPrefix,
+        mut callback: impl FnMut(MortonPrefix, SlabRef),
+    ) -> Option<()> {
         let mut cur = self.root?;
+        let mut cur_prefix = MortonPrefix::empty();
 
         for i in prefix.unpack() {
             let n = self
                 .node_slab
                 .get(cur.get_key())
                 .expect("Nodes should exist in the slab");
+            callback(cur_prefix, cur);
             cur = n.children[i as usize]?;
+            // unwrap because the tree is never deeper than a prefix.
+            cur_prefix = cur_prefix.push(i).unwrap();
         }
 
-        Some(cur)
+        // Last time: we are at the node for this prefix.
+        debug_assert_eq!(cur_prefix, *prefix);
+        callback(cur_prefix, cur);
+
+        Some(())
+    }
+
+    fn traverse_to_prefix(
+        &self,
+        prefix: &MortonPrefix,
+        callback: impl FnMut(MortonPrefix, SlabRef),
+    ) {
+        self.traverse_to_prefix_inner(prefix, callback);
+    }
+
+    fn slab_ref_for_node(&self, prefix: &MortonPrefix) -> Option<SlabRef> {
+        let mut ret = None;
+        self.traverse_to_prefix(prefix, |_, nr| ret = Some(nr));
+        ret
     }
 
     fn slab_ref_for_value(&self, prefix: &MortonPrefix) -> Option<SlabRef> {

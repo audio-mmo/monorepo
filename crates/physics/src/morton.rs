@@ -90,6 +90,13 @@ impl MortonCode {
 }
 
 impl MortonPrefix {
+    pub const fn empty() -> MortonPrefix {
+        MortonPrefix {
+            code: 0,
+            first_valid_bit: 32,
+        }
+    }
+
     pub fn from_code(code: MortonCode) -> MortonPrefix {
         MortonPrefix {
             code: code.data,
