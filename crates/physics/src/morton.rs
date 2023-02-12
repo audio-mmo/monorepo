@@ -98,6 +98,16 @@ impl MortonPrefix {
         }
     }
 
+    #[must_use]
+    fn canonicalize(&self) -> MortonPrefix {
+        let mask = (u64::MAX << self.first_valid_bit) as u32;
+        let code = self.code & mask;
+        MortonPrefix {
+            code,
+            first_valid_bit: self.first_valid_bit,
+        }
+    }
+
     /// Merge this prefix with another prefix, producing the prefix which is the prefix of both prefixes.
     #[must_use = "This returns a new prefix"]
     pub fn merge(&self, other: MortonPrefix) -> MortonPrefix {
@@ -114,11 +124,12 @@ impl MortonPrefix {
             .max(other.first_valid_bit as u32);
         // We now bump candidate up to the next multiple of 2, since we never deal in fractional bits.
         let actual = (candidate + 1) & (!1);
-        let mask = (u64::MAX << actual) as u32;
+
         MortonPrefix {
-            code: self.code & mask,
+            code: self.code,
             first_valid_bit: actual.try_into().unwrap(),
         }
+        .canonicalize()
     }
 
     /// Unpack this prefix into an iterator of `u8` of the form `yx` where y and x aree bits which are set if the
@@ -131,6 +142,47 @@ impl MortonPrefix {
             let item = (code & mask) >> 30;
             code <<= 2;
             item.try_into().unwrap()
+        })
+    }
+
+    /// Pop the lowest bit pair off this prefix if possible. Returns the popped bit pair and a new prefix, or `None` if
+    /// this prefix is already empty.
+    #[must_use = "This returns a new prefix"]
+    fn pop(&self) -> Option<(u8, MortonPrefix)> {
+        if self.first_valid_bit == 32 {
+            return None;
+        }
+
+        let shifted = self.code >> self.first_valid_bit;
+        let extracted = shifted & 3;
+        let first_valid_bit = self.first_valid_bit + 2;
+        Some((
+            extracted as u8,
+            MortonPrefix {
+                code: self.code,
+                first_valid_bit,
+            }
+            .canonicalize(),
+        ))
+    }
+
+    /// Push a pair of bits onto this prefix if possible. Returns `None` if the prefix already has 16 quadrants.
+    #[must_use]
+    pub fn push(&self, quadrant: u8) -> Option<MortonPrefix> {
+        if self.first_valid_bit == 0 {
+            return None;
+        }
+
+        let first_valid_bit = self.first_valid_bit - 2;
+
+        debug_assert!((0..=3).contains(&quadrant));
+        let partial = (quadrant as u32) << first_valid_bit;
+        let code = self.code | partial;
+
+        // No canonicalizing; the input was canonical, and we added two bits.
+        Some(MortonPrefix {
+            code,
+            first_valid_bit,
         })
     }
 }
@@ -283,5 +335,78 @@ mod tests {
             let expected = boring_morton_prefix((x1, y1), (x2, y2));
             prop_assert_eq!(unpacked, expected);
         }
+    }
+
+    #[test]
+    fn test_push_simple() {
+        let prefix = MortonPrefix {
+            code: 0xffff0000,
+            first_valid_bit: 16,
+        };
+        let quadrants = prefix.unpack().collect::<Vec<_>>();
+
+        for i in 0..4 {
+            let mut q = quadrants.clone();
+            q.push(i);
+            let pushed = prefix.push(i).expect("This prefix is not full");
+            let pushed_q = pushed.unpack().collect::<Vec<_>>();
+            assert_eq!(pushed_q, q);
+        }
+
+        let full = MortonPrefix {
+            code: 0,
+            first_valid_bit: 0,
+        };
+        assert!(full.push(2).is_none());
+        let empty = MortonPrefix {
+            code: 0,
+            first_valid_bit: 32,
+        };
+        assert_eq!(
+            empty.push(2),
+            Some(MortonPrefix {
+                code: 0x80000000,
+                first_valid_bit: 30
+            })
+        );
+    }
+    #[test]
+    fn test_pop() {
+        let full = MortonPrefix {
+            code: 0xffffffff,
+            first_valid_bit: 0,
+        };
+
+        assert_eq!(
+            full.pop(),
+            Some((
+                3,
+                MortonPrefix {
+                    code: 0xfffffffc,
+                    first_valid_bit: 2
+                }
+            ))
+        );
+
+        let partially_full = MortonPrefix {
+            code: 0xfffe0000,
+            first_valid_bit: 16,
+        };
+        assert_eq!(
+            partially_full.pop(),
+            Some((
+                2,
+                MortonPrefix {
+                    code: 0xfffc0000,
+                    first_valid_bit: 18,
+                }
+            ))
+        );
+
+        let empty = MortonPrefix {
+            code: 0,
+            first_valid_bit: 32,
+        };
+        assert_eq!(empty.pop(), None);
     }
 }
