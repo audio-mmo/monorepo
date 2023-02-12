@@ -2,22 +2,15 @@
 use crate::*;
 
 pub(crate) fn aabb_aabb_test(box1: &Aabb, box2: &Aabb) -> bool {
-    // We use the minkowski sum formulation of this so that we can later move it to continuous collision detection with normals etc.
-    let actual_b1 = {
-        let hw = box1.get_half_width() + box2.get_half_width();
-        let hh = box1.get_half_height() + box2.get_half_height();
-        let c = box1.get_center();
-        let p1 = V2::<f64>::new(c.x - hw, c.y - hh);
-        let p2 = V2::<f64>::new(c.x + hw, c.y + hh);
-        Aabb::from_points(p1, p2).expect("Internal logic should never fail")
-    };
+    let min_x = box1.get_p1().x.min(box2.get_p1().x);
+    let max_x = box1.get_p2().x.max(box2.get_p2().x);
+    let min_y = box1.get_p1().y.min(box2.get_p1().y);
+    let max_y = box1.get_p2().y.max(box2.get_p2().y);
+    let dist_x = max_x - min_x;
+    let dist_y = max_y - min_y;
 
-    let test_point = box2.get_center();
-    // Then it's jus if the test point is inside the AABB.
-    let center = actual_b1.get_center();
-    let xdist = (test_point.x - center.x).abs();
-    let ydist = (test_point.y - center.y).abs();
-    xdist < actual_b1.get_half_width() && ydist < actual_b1.get_half_height()
+    dist_x <= (box1.get_width() + box2.get_width())
+        && dist_y <= (box1.get_height() + box2.get_height())
 }
 
 #[cfg(test)]
