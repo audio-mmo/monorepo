@@ -122,31 +122,12 @@ impl<T> MortonTree<T> {
 
     /// Delete a given value from the tree.
     ///
-    /// This does not clear the nodes. After bulk operations, call [Self::prune_empty].
+    /// This does not clear the empty nodes.
     pub fn remove(&mut self, prefix: &MortonPrefix) -> Option<T> {
         let node = self.slab_ref_for_node(prefix)?;
         let vk = self.node_slab[node.get_key()].value?;
         self.node_slab[node.get_key()].value = None;
         Some(self.value_slab.remove(vk.get_key()))
-    }
-
-    /// Compact the subtree starting at root.
-    ///
-    /// returns whether the tree was dropped.
-    fn prune_subtree(&mut self, root: SlabRef) -> bool {
-        let children = self.node_slab[root.get_key()].children;
-        let mut pruning = true;
-        for c in children.into_iter().flatten() {
-            pruning &= self.prune_subtree(c);
-        }
-
-        pruning &= self.node_slab[root.get_key()].value.is_none();
-
-        if pruning {
-            self.node_slab.remove(root.get_key());
-        }
-
-        pruning
     }
 
     pub fn clear(&mut self) {
