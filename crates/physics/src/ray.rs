@@ -38,7 +38,7 @@ impl Ray {
         TileGridRaycastPointIterator::new(self)
     }
 
-    pub fn get_bounding_box(&self) -> Aabb {
+    pub fn get_bounding_box(&self) -> Aabb<f64> {
         let x0 = self.origin.x;
         let y0 = self.origin.y;
         let x1 = self.origin.x + self.length * self.direction.x;

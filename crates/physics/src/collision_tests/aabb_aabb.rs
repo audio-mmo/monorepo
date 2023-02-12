@@ -1,7 +1,7 @@
 //! The AABB-AABB collision test.
 use crate::*;
 
-pub(crate) fn aabb_aabb_test(box1: &Aabb, box2: &Aabb) -> bool {
+pub(crate) fn aabb_aabb_test(box1: &Aabb<f64>, box2: &Aabb<f64>) -> bool {
     let min_x = box1.get_p1().x.min(box2.get_p1().x);
     let max_x = box1.get_p2().x.max(box2.get_p2().x);
     let min_y = box1.get_p1().y.min(box2.get_p1().y);
@@ -20,7 +20,7 @@ mod tests {
     use proptest::prelude::*;
 
     // A second implementation of a box-box collision algorithm that we know to be correct.
-    fn test_oracle(b1: &Aabb, b2: &Aabb) -> bool {
+    fn test_oracle(b1: &Aabb<f64>, b2: &Aabb<f64>) -> bool {
         let not_touching_width = b1.get_width() + b2.get_width();
         let not_touching_height = b1.get_height() + b2.get_height();
         let min_x = b1.get_p1().x.min(b2.get_p1().x);

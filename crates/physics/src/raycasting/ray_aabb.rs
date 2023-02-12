@@ -2,7 +2,7 @@ use crate::raycasting::*;
 
 /// A ray-aabb intersection test using the slab test, with a modification that allows it to also compute the normal.
 #[allow(clippy::float_cmp)]
-pub(crate) fn ray_aabb_test(ray: &Ray, aabb: &Aabb) -> Option<RaycastingResult> {
+pub(crate) fn ray_aabb_test(ray: &Ray, aabb: &Aabb<f64>) -> Option<RaycastingResult> {
     // The one fun thing about this algorithm is that we have to be careful
     // about NaN.  Rust's built-in min/max return the non-NaN number and thus
     // always produce a number unless both arguments are NaN.  The comments in
@@ -130,7 +130,7 @@ mod tests {
     /// box, and has the required normal.
     fn check_normal(
         ray: &Ray,
-        aabb: &Aabb,
+        aabb: &Aabb<f64>,
         expected_normal: &V2<f64>,
     ) -> prop::test_runner::TestCaseResult {
         let test_res = ray_aabb_test(ray, aabb).unwrap();
