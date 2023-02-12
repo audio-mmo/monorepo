@@ -77,19 +77,6 @@ impl Aabb {
         self.distance_to_point_squared(point).sqrt()
     }
 
-    /// Move the box.  This may slightly warp the dimensions of the box and
-    /// should not be used on AABBs which don't represent objects (e.g. as the
-    /// input to a spatial hash) becuase this movement can shrink the box
-    /// slightly (so that e.g. the starting point of a ray is slightly outside
-    /// the aabb).
-    #[must_use = "This doesn't mutate the Aabb in place"]
-    pub fn move_aabb(&self, new_center: &V2<f64>) -> Aabb {
-        let half_dims: V2<f64> = (self.p2 - self.p1) / 2.0;
-        let p1 = *new_center - half_dims;
-        let p2 = *new_center + half_dims;
-        Aabb { p1, p2 }
-    }
-
     /// Dilate the AABB by the given multiple by multiplying the width and
     /// height.
     #[must_use = "Does not mutate in place"]
@@ -116,13 +103,5 @@ mod tests {
         approx::assert_relative_eq!(b.get_half_width(), 1.0);
         approx::assert_relative_eq!(b.get_half_height(), 2.0);
         Ok(())
-    }
-
-    #[test]
-    fn move_aabb() {
-        let aabb1 = Aabb::from_points(V2::new(1.0, 1.0), V2::new(3.0, 3.0)).unwrap();
-        let aabb2 = aabb1.move_aabb(&V2::new(10.0, 5.0));
-        assert_eq!(*aabb2.get_p1(), V2::new(9.0, 4.0));
-        assert_eq!(*aabb2.get_p2(), V2::new(11.0, 6.0));
     }
 }
