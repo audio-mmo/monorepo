@@ -3,19 +3,12 @@ use anyhow::{anyhow, Result};
 
 use crate::*;
 
-/// An axis-aligned bounding box is specified by 2 points `p1` and `p2`, such
-/// that `p1.x <= p2.x && p1.y <= p2.y`.
-///
-/// It is tempting to make the authoritative representation be a center and
-/// half-width pair, but this doesn't work: floating point inaccuracies mean
-/// that when using this as a bounding box, the box can be slightly too small.
-/// There are tests in `ray.rs`, for example, which fail because the bounding
-/// box *doesn't contain the starting point of the ray* with such a
-/// representation.  
+/// An axis-aligned bounding box is specified by the lower left point and a width/height vector.
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 pub struct Aabb {
     p1: V2<f64>,
-    p2: V2<f64>,
+    /// width-height
+    wh: V2<f64>,
 }
 
 impl Aabb {
@@ -27,7 +20,7 @@ impl Aabb {
             return Err(anyhow!("p1.y > p2.y"));
         }
 
-        Ok(Aabb { p1, p2 })
+        Ok(Aabb { p1, wh: p2 - p1 })
     }
 
     pub fn get_p1(&self) -> V2<f64> {
@@ -35,15 +28,15 @@ impl Aabb {
     }
 
     pub fn get_p2(&self) -> V2<f64> {
-        self.p2
+        self.p1 + self.wh
     }
 
     pub fn get_width(&self) -> f64 {
-        self.p2.x - self.p1.x
+        self.wh.x
     }
 
     pub fn get_height(&self) -> f64 {
-        self.p2.y - self.p1.y
+        self.wh.y
     }
 
     pub fn get_half_width(&self) -> f64 {
@@ -64,8 +57,10 @@ impl Aabb {
     /// get the squared distance to a specific point.
     pub fn distance_to_point_squared(&self, point: &V2<f64>) -> f64 {
         // The closest point on a box to a point is the clamped value of the point itself.
-        let x = point.x.clamp(self.p1.x, self.p2.x);
-        let y = point.y.clamp(self.p1.y, self.p2.y);
+        let p1 = self.get_p1();
+        let p2 = self.get_p2();
+        let x = point.x.clamp(p1.x, p2.x);
+        let y = point.y.clamp(p1.y, p2.y);
         (point.x - x).powi(2) + (point.y - y).powi(2)
     }
 
