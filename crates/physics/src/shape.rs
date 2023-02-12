@@ -31,7 +31,7 @@ impl Shape {
     }
 
     #[must_use = "This doesn't mutate the Shape in place"]
-    pub fn move_shape(&self, new_center: &V2) -> Shape {
+    pub fn move_shape(&self, new_center: &V2<f64>) -> Shape {
         match *self {
             Shape::Aabb(ref a) => Shape::Aabb(a.move_aabb(new_center)),
         }

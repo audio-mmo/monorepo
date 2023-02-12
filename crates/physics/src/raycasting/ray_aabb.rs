@@ -102,13 +102,13 @@ pub(crate) fn ray_aabb_test(ray: &Ray, aabb: &Aabb) -> Option<RaycastingResult> 
     // tray must equal one of the 4 values.  We also know which sides they go
     // with.
     let normal = if tray == tx1 {
-        V2::new(-1.0, 0.0)
+        V2::<f64>::new(-1.0, 0.0)
     } else if tray == tx2 {
-        V2::new(1.0, 0.0)
+        V2::<f64>::new(1.0, 0.0)
     } else if tray == ty1 {
-        V2::new(0.0, -1.0)
+        V2::<f64>::new(0.0, -1.0)
     } else if tray == ty2 {
-        V2::new(0.0, 1.0)
+        V2::<f64>::new(0.0, 1.0)
     } else {
         unreachable!("The ray must equal one of the 4 t values");
     };
@@ -131,7 +131,7 @@ mod tests {
     fn check_normal(
         ray: &Ray,
         aabb: &Aabb,
-        expected_normal: &V2,
+        expected_normal: &V2<f64>,
     ) -> prop::test_runner::TestCaseResult {
         let test_res = ray_aabb_test(ray, aabb).unwrap();
         prop_assert!(!test_res.inside);
@@ -237,7 +237,7 @@ mod tests {
             let y_per = miny + box_height * side_percent;
 
             // Table is (source, normal).
-            let cases: Vec<(V2, V2)> = vec![
+            let cases: Vec<(V2<f64>, V2<f64>)> = vec![
                 (V2::new(minx - box_dist, y_per), V2::new(-1.0, 0.0)),
                 (V2::new(maxx + box_dist, y_per), V2::new(1.0, 0.0)),
                 (V2::new(x_per, miny - box_dist), V2::new(0.0, -1.0)),
@@ -257,7 +257,7 @@ mod tests {
     fn test_edges() {
         let aabb = Aabb::from_points(V2::new(-1.0, -1.0), V2::new(1.0, 1.0)).unwrap();
         // Bind the V2 constructors so we can easily loop over coordinates.
-        let builders: Vec<fn(offset: f64) -> V2> = vec![
+        let builders: Vec<fn(offset: f64) -> V2<f64>> = vec![
             |x| V2::new(x, -1.0),
             |x| V2::new(x, 1.0),
             |x| V2::new(-1.0, x),

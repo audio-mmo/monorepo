@@ -1,18 +1,27 @@
 //! A 2-dimensional vector/point.
+use num::Num;
 
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
-pub struct V2 {
-    pub x: f64,
-    pub y: f64,
+#[derive(Debug, Copy, Clone, Eq, Ord, PartialEq, PartialOrd)]
+pub struct V2<T> {
+    pub x: T,
+    pub y: T,
 }
 
-impl V2 {
-    pub const fn new(x: f64, y: f64) -> V2 {
+impl<T: Num> V2<T> {
+    pub const fn new(x: T, y: T) -> Self {
         V2 { x, y }
     }
+}
 
+impl<T> V2<T>
+where
+    T: Num + Copy,
+    f64: From<T>,
+{
     pub fn length_squared(&self) -> f64 {
-        self.x * self.x + self.y * self.y
+        let x: f64 = self.x.into();
+        let y: f64 = self.y.into();
+        x * x + y * y
     }
 
     pub fn length(&self) -> f64 {
@@ -20,31 +29,40 @@ impl V2 {
     }
 
     #[must_use = "This function doesn't modify the vector in place"]
-    pub fn normalize(self) -> V2 {
+    pub fn normalize(self) -> V2<f64> {
         let l = self.length();
         V2 {
-            x: self.x / l,
-            y: self.y / l,
+            x: f64::from(self.x) / l,
+            y: f64::from(self.y) / l,
         }
     }
 
-    pub fn dot(&self, other: &V2) -> f64 {
-        self.x * other.x + self.y * other.y
+    pub fn dot(&self, other: &V2<T>) -> f64 {
+        let sx: f64 = self.x.into();
+        let sy: f64 = self.y.into();
+        let ox: f64 = other.x.into();
+        let oy: f64 = other.y.into();
+
+        sx * ox + sy * oy
     }
 
-    pub fn distance_squared(&self, other: &V2) -> f64 {
-        (self.x - other.x).powi(2) + (self.y - other.y).powi(2)
+    pub fn distance_squared(&self, other: &V2<T>) -> f64 {
+        let x1: f64 = self.x.into();
+        let y1: f64 = self.y.into();
+        let x2: f64 = other.x.into();
+        let y2: f64 = other.y.into();
+        (x2 - x1).powi(2) + (y2 - y1).powi(2)
     }
 
-    pub fn distance(&self, other: &V2) -> f64 {
+    pub fn distance(&self, other: &V2<T>) -> f64 {
         self.distance_squared(other).sqrt()
     }
 }
 
-impl std::ops::Add for V2 {
-    type Output = V2;
+impl<T: Num> std::ops::Add for V2<T> {
+    type Output = V2<T>;
 
-    fn add(self, rhs: V2) -> V2 {
+    fn add(self, rhs: V2<T>) -> V2<T> {
         V2 {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
@@ -52,77 +70,43 @@ impl std::ops::Add for V2 {
     }
 }
 
-impl std::ops::AddAssign for V2 {
+impl<T: Num + Copy> std::ops::AddAssign for V2<T> {
     fn add_assign(&mut self, rhs: Self) {
-        self.x += rhs.x;
-        self.y += rhs.y;
+        self.x = self.x + rhs.x;
+        self.y = self.y + rhs.y;
     }
 }
 
-impl std::ops::Mul<f64> for V2 {
-    type Output = V2;
+impl<T: Copy> std::ops::Mul<f64> for V2<T>
+where
+    f64: From<T>,
+{
+    type Output = V2<f64>;
 
     fn mul(self, rhs: f64) -> Self::Output {
         V2 {
-            x: self.x * rhs,
-            y: self.y * rhs,
+            x: f64::from(self.x) * rhs,
+            y: f64::from(self.y) * rhs,
         }
     }
 }
 
-impl std::ops::Mul<f32> for V2 {
-    type Output = V2;
-
-    fn mul(self, rhs: f32) -> Self::Output {
-        self * (rhs as f64)
-    }
-}
-
-impl std::ops::MulAssign<f64> for V2 {
-    fn mul_assign(&mut self, rhs: f64) {
-        *self = *self * rhs;
-    }
-}
-
-impl std::ops::MulAssign<f32> for V2 {
-    fn mul_assign(&mut self, rhs: f32) {
-        *self *= rhs as f64;
-    }
-}
-
-impl std::ops::Div<f64> for V2 {
-    type Output = V2;
+impl<T: Copy> std::ops::Div<f64> for V2<T>
+where
+    f64: From<T>,
+{
+    type Output = V2<f64>;
 
     fn div(self, rhs: f64) -> Self::Output {
         V2 {
-            x: self.x / rhs,
-            y: self.y / rhs,
+            x: f64::from(self.x) / rhs,
+            y: f64::from(self.y) / rhs,
         }
     }
 }
 
-impl std::ops::DivAssign<f64> for V2 {
-    fn div_assign(&mut self, rhs: f64) {
-        *self = *self / rhs;
-    }
-}
-
-impl std::ops::Div<f32> for V2 {
-    type Output = V2;
-
-    fn div(self, rhs: f32) -> Self::Output {
-        self / (rhs as f64)
-    }
-}
-
-impl std::ops::DivAssign<f32> for V2 {
-    fn div_assign(&mut self, rhs: f32) {
-        *self /= rhs as f64;
-    }
-}
-
-impl std::ops::Neg for V2 {
-    type Output = V2;
+impl<T: std::ops::Neg> std::ops::Neg for V2<T> {
+    type Output = V2<<T as std::ops::Neg>::Output>;
 
     fn neg(self) -> Self::Output {
         V2 {
@@ -132,16 +116,20 @@ impl std::ops::Neg for V2 {
     }
 }
 
-impl std::ops::Sub for V2 {
-    type Output = V2;
+impl<T: Num> std::ops::Sub for V2<T> {
+    type Output = V2<T>;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        self + -rhs
+        V2 {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
     }
 }
 
-impl std::ops::SubAssign for V2 {
+impl<T: Num + Copy> std::ops::SubAssign for V2<T> {
     fn sub_assign(&mut self, rhs: Self) {
-        *self = *self - rhs;
+        self.x = self.x - rhs.x;
+        self.y = self.y - rhs.y;
     }
 }

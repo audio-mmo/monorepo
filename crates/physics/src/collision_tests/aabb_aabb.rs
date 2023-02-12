@@ -7,8 +7,8 @@ pub(crate) fn aabb_aabb_test(box1: &Aabb, box2: &Aabb) -> bool {
         let hw = box1.get_half_width() + box2.get_half_width();
         let hh = box1.get_half_height() + box2.get_half_height();
         let c = box1.get_center();
-        let p1 = V2::new(c.x - hw, c.y - hh);
-        let p2 = V2::new(c.x + hw, c.y + hh);
+        let p1 = V2::<f64>::new(c.x - hw, c.y - hh);
+        let p2 = V2::<f64>::new(c.x + hw, c.y + hh);
         Aabb::from_points(p1, p2).expect("Internal logic should never fail")
     };
 

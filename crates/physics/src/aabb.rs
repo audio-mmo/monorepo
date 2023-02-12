@@ -14,12 +14,12 @@ use crate::*;
 /// representation.  
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 pub struct Aabb {
-    p1: V2,
-    p2: V2,
+    p1: V2<f64>,
+    p2: V2<f64>,
 }
 
 impl Aabb {
-    pub fn from_points(p1: V2, p2: V2) -> Result<Aabb> {
+    pub fn from_points(p1: V2<f64>, p2: V2<f64>) -> Result<Aabb> {
         if p1.x > p2.x {
             return Err(anyhow!("p2.x > p1.x"));
         }
@@ -30,11 +30,11 @@ impl Aabb {
         Ok(Aabb { p1, p2 })
     }
 
-    pub fn get_p1(&self) -> &V2 {
+    pub fn get_p1(&self) -> &V2<f64> {
         &self.p1
     }
 
-    pub fn get_p2(&self) -> &V2 {
+    pub fn get_p2(&self) -> &V2<f64> {
         &self.p2
     }
 
@@ -54,7 +54,7 @@ impl Aabb {
         self.get_height() / 2.0
     }
 
-    pub fn get_center(&self) -> V2 {
+    pub fn get_center(&self) -> V2<f64> {
         V2 {
             x: self.p1.x + self.get_half_width(),
             y: self.p1.y + self.get_half_height(),
@@ -66,14 +66,14 @@ impl Aabb {
     }
 
     /// get the squared distance to a specific point.
-    pub fn distance_to_point_squared(&self, point: &V2) -> f64 {
+    pub fn distance_to_point_squared(&self, point: &V2<f64>) -> f64 {
         // The closest point on a box to a point is the clamped value of the point itself.
         let x = point.x.clamp(self.p1.x, self.p2.x);
         let y = point.y.clamp(self.p1.y, self.p2.y);
         (point.x - x).powi(2) + (point.y - y).powi(2)
     }
 
-    pub fn distance_to_point(&self, point: &V2) -> f64 {
+    pub fn distance_to_point(&self, point: &V2<f64>) -> f64 {
         self.distance_to_point_squared(point).sqrt()
     }
 
@@ -83,8 +83,8 @@ impl Aabb {
     /// slightly (so that e.g. the starting point of a ray is slightly outside
     /// the aabb).
     #[must_use = "This doesn't mutate the Aabb in place"]
-    pub fn move_aabb(&self, new_center: &V2) -> Aabb {
-        let half_dims: V2 = (self.p2 - self.p1) / 2.0;
+    pub fn move_aabb(&self, new_center: &V2<f64>) -> Aabb {
+        let half_dims: V2<f64> = (self.p2 - self.p1) / 2.0;
         let p1 = *new_center - half_dims;
         let p2 = *new_center + half_dims;
         Aabb { p1, p2 }
@@ -98,8 +98,8 @@ impl Aabb {
         let nw = self.get_half_width() * multiple;
         let nh = self.get_half_height() * multiple;
         let center = self.get_center();
-        let p1 = center - V2::new(nw, nh);
-        let p2 = center + V2::new(nw, nh);
+        let p1 = center - V2::<f64>::new(nw, nh);
+        let p2 = center + V2::<f64>::new(nw, nh);
         Aabb::from_points(p1, p2).expect("If multiple is positive, this should always succeed")
     }
 }

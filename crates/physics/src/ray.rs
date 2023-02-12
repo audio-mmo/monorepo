@@ -2,13 +2,13 @@ use crate::*;
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub struct Ray {
-    pub(crate) origin: V2,
-    pub(crate) direction: V2,
+    pub(crate) origin: V2<f64>,
+    pub(crate) direction: V2<f64>,
     pub(crate) length: f64,
 }
 
 impl Ray {
-    pub fn from_angle(origin: V2, length: f64, theta: f64) -> Ray {
+    pub fn from_angle(origin: V2<f64>, length: f64, theta: f64) -> Ray {
         Ray::new(
             origin,
             V2 {
@@ -19,7 +19,7 @@ impl Ray {
         )
     }
 
-    pub fn new(origin: V2, direction: V2, length: f64) -> Ray {
+    pub fn new(origin: V2<f64>, direction: V2<f64>, length: f64) -> Ray {
         Ray {
             origin,
             direction,
@@ -28,9 +28,9 @@ impl Ray {
     }
 
     /// Build a ray from a sourec point and a destination point.
-    pub fn from_points(source: V2, target: V2) -> Ray {
+    pub fn from_points(source: V2<f64>, target: V2<f64>) -> Ray {
         let length = source.distance(&target);
-        let direction = V2::new(target.x - source.x, target.y - source.y).normalize();
+        let direction = V2::<f64>::new(target.x - source.x, target.y - source.y).normalize();
         Ray::new(source, direction, length)
     }
 
@@ -55,8 +55,8 @@ impl Ray {
     }
 
     /// Evaluate the ray at a given `t`.
-    pub fn evaluate(&self, t: f64) -> V2 {
-        V2::new(
+    pub fn evaluate(&self, t: f64) -> V2<f64> {
+        V2::<f64>::new(
             self.origin.x + self.direction.x * t,
             self.origin.y + self.direction.y * t,
         )
