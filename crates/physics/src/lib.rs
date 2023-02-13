@@ -11,8 +11,8 @@ mod raycasting;
 mod v2;
 
 pub use aabb::*;
+pub use errors::Result;
 pub use morton_tree::*;
 pub use ray::*;
 pub use raycasting::*;
 pub use v2::*;
-pub use errors::Result;
