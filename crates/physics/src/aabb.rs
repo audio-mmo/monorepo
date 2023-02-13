@@ -99,8 +99,8 @@ impl Aabb<u16> {
         let h = self.wh.y;
         let x2 = x.checked_add(w).ok_or(AabbError::AabbU16Overflow)?;
         let y2 = y.checked_add(h).ok_or(AabbError::AabbU16Overflow)?;
-        Ok(MortonPrefix::from_code(MortonCode::encode(x, y))
-            .merge(MortonPrefix::from_code(MortonCode::encode(x2, y2))))
+        Ok(MortonPrefix::from_code(MortonCode::encode(V2::new(x, y)))
+            .merge(MortonPrefix::from_code(MortonCode::encode(V2::new(x2, y2)))))
     }
 
     /// get an iterator which will visit all tiles of this box, by rows of x starting from the minimum y:

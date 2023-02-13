@@ -54,15 +54,15 @@ fn collapse_u32(x: u32) -> u16 {
 }
 
 impl MortonCode {
-    pub fn encode(x: u16, y: u16) -> MortonCode {
+    pub fn encode(point: V2<u16>) -> MortonCode {
         MortonCode {
-            data: expand_u16(x) | (expand_u16(y) << 1),
+            data: expand_u16(point.x) | (expand_u16(point.y) << 1),
         }
     }
 
     /// Decode this mortonCode, returning `(x, y)`.
-    pub fn decode(&self) -> (u16, u16) {
-        (collapse_u32(self.data), collapse_u32(self.data >> 1))
+    pub fn decode(&self) -> V2<u16> {
+        V2::new(collapse_u32(self.data), collapse_u32(self.data >> 1))
     }
 
     /// Expand this morton code into two-bit pairs.
@@ -201,7 +201,7 @@ impl MortonPrefix {
     ///
     /// This is sort of the inverse of [crate::Aabb::tile_prefix]: any point in the box will be inside the prefix that function returns (but that prefix may cover more area than the box).
     pub fn contains_point(&self, point: V2<u16>) -> bool {
-        let code = MortonCode::encode(point.x, point.y);
+        let code = MortonCode::encode(point);
         self.contains_code(&code)
     }
 
@@ -260,19 +260,19 @@ mod tests {
     proptest::proptest! {
         #[test]
         fn test_encode_decode_inverse(x: u16, y: u16) {
-            let enc = MortonCode::encode(x, y);
-            let (dec_x, dec_y) = enc.decode();
-            prop_assert_eq!((x, y), (dec_x, dec_y));
+            let enc = MortonCode::encode(V2::new(x, y));
+            let dec = enc.decode();
+            prop_assert_eq!(V2::new(x, y), dec);
         }
     }
 
     proptest::proptest! {
         #[test]
         fn test_quadrants_inverses(x: u16, y: u16) {
-            let code = MortonCode::encode(x, y);
+            let code = MortonCode::encode(V2::new(x, y));
             let quadrants = code.as_quadrants();
             let code2 = MortonCode::from_quadrants(quadrants);
-            prop_assert_eq!((x, y), code2.decode());
+            prop_assert_eq!(V2::new(x, y), code2.decode());
         }
     }
 
@@ -292,16 +292,16 @@ mod tests {
     proptest::proptest! {
         #[test]
         fn test_quadrants_against_boring(x: u16, y: u16) {
-            let complicated = MortonCode::encode(x, y).as_quadrants();
+            let complicated = MortonCode::encode(V2::new(x, y)).as_quadrants();
             let boring = boring_quadrant_computation(x, y);
             prop_assert_eq!(complicated, boring);
         }
     }
 
     #[track_caller]
-    fn test_prefix((x1, y1): (u16, u16), (x2, y2): (u16, u16), expected: &[u8]) {
-        let code1 = MortonCode::encode(x1, y1);
-        let code2 = MortonCode::encode(x2, y2);
+    fn test_prefix(p1: V2<u16>, p2: V2<u16>, expected: &[u8]) {
+        let code1 = MortonCode::encode(p1);
+        let code2 = MortonCode::encode(p2);
         let prefix = MortonPrefix::from_code(code1).merge(MortonPrefix::from_code(code2));
         let got = prefix.unpack().collect::<Vec<_>>();
         assert_eq!(&got[..], expected);
@@ -310,30 +310,30 @@ mod tests {
     #[test]
     fn test_prefixes_basic() {
         assert_eq!(
-            MortonPrefix::from_code(MortonCode::encode(0xffff, 0xffff))
+            MortonPrefix::from_code(MortonCode::encode(V2::new(0xffff, 0xffff)))
                 .unpack()
                 .collect::<Vec<_>>(),
             vec![3; 16]
         );
 
         test_prefix(
-            (0xffff, 0xffff),
-            (0xffff, 0xffff),
+            V2::new(0xffff, 0xffff),
+            V2::new(0xffff, 0xffff),
             &[3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
         );
 
         test_prefix(
-            (0xff00, 0xff00),
-            (0xffff, 0xffff),
+            V2::new(0xff00, 0xff00),
+            V2::new(0xffff, 0xffff),
             &[3, 3, 3, 3, 3, 3, 3, 3],
         );
 
-        test_prefix((0xffff, 0xffff), (0, 0), &[]);
+        test_prefix(V2::new(0xffff, 0xffff), V2::new(0, 0), &[]);
     }
 
-    fn boring_morton_prefix((x1, y1): (u16, u16), (x2, y2): (u16, u16)) -> Vec<u8> {
-        let m1 = MortonCode::encode(x1, y1).as_quadrants();
-        let m2 = MortonCode::encode(x2, y2).as_quadrants();
+    fn boring_morton_prefix(p1: V2<u16>, p2: V2<u16>) -> Vec<u8> {
+        let m1 = MortonCode::encode(p1).as_quadrants();
+        let m2 = MortonCode::encode(p2).as_quadrants();
         m1.into_iter()
             .zip(m2.into_iter())
             .take_while(|(x, y)| x == y)
@@ -353,11 +353,11 @@ mod tests {
             x2: u16,
             y2: u16,
         ) {
-            let p1 = MortonPrefix::from_code(MortonCode::encode(x1, y1));
-            let p2 = MortonPrefix::from_code(MortonCode::encode(x2, y2));
+            let p1 = MortonPrefix::from_code(MortonCode::encode(V2::new(x1, y1)));
+            let p2 = MortonPrefix::from_code(MortonCode::encode(V2::new(x2, y2)));
             let merged = p1.merge(p2);
             let unpacked = merged.unpack().collect::<Vec<_>>();
-            let expected = boring_morton_prefix((x1, y1), (x2, y2));
+            let expected = boring_morton_prefix(V2::new(x1, y1), V2::new(x2, y2));
             prop_assert_eq!(unpacked, expected);
         }
     }
