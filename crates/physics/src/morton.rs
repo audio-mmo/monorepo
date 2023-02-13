@@ -1,8 +1,12 @@
 //! An implementation of [Morton Coding](https://en.wikipedia.org/wiki/Z-order_curve).
 use proptest::{arbitrary::Arbitrary, strategy::Strategy};
 
+use crate::V2;
+
 /// A Morton-encoded pair of u16s, representing x/y coordinates.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, derive_more::Display)]
+#[derive(
+    Copy, Clone, Debug, Eq, PartialEq, Hash, derive_more::Display, proptest_derive::Arbitrary,
+)]
 #[display(fmt=:"{:x}", code)]
 pub struct MortonCode {
     /// Encoded as `y << 1 | x`
@@ -191,6 +195,20 @@ impl MortonPrefix {
             code,
             first_valid_bit,
         })
+    }
+
+    /// Return true if this prefix has the same leading bits as the given point.
+    ///
+    /// This is sort of the inverse of [crate::Aabb::tile_prefix]: any point in the box will be inside the prefix that function returns (but that prefix may cover more area than the box).
+    pub fn contains_point(&self, point: V2<u16>) -> bool {
+        let code = MortonCode::encode(point.x, point.y);
+        self.contains_code(&code)
+    }
+
+    pub fn contains_code(&self, code: &MortonCode) -> bool {
+        // The morton code is inside this prefix if the prefix of bits that code contains matches. To figure this out, we will mask off the lower bits of the code, and then compare them.
+        let mask = (u64::MAX << self.first_valid_bit) as u32;
+        (code.data & mask) == self.code
     }
 }
 
@@ -415,5 +433,28 @@ mod tests {
             first_valid_bit: 32,
         };
         assert_eq!(empty.pop(), None);
+    }
+
+    fn boring_prefix_contains(prefix: &MortonPrefix, code: &MortonCode) -> bool {
+        for (i, j) in prefix.unpack().zip(code.as_quadrants()) {
+            if i != j {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    proptest! {
+        #![proptest_config(proptest::prelude::ProptestConfig {
+            cases: 10000000,
+            ..Default::default()
+        })]
+        fn test_contains_point(
+            prefix: MortonPrefix,
+            code: MortonCode
+        ) {
+            prop_assert_eq!(prefix.contains_code(&code), boring_prefix_contains(&prefix, &code));
+        }
     }
 }

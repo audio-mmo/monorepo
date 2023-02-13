@@ -36,7 +36,7 @@ mod tests {
     }
 
     #[test]
-    fn basic() -> anyhow::Result<()> {
+    fn basic() -> crate::Result<()> {
         let b1 = Aabb::from_points(V2::new(0.0, 0.0), V2::new(2.0, 2.0))?;
         let b2 = Aabb::from_points(V2::new(1.0, 1.0), V2::new(3.0, 3.0))?;
         assert!(aabb_aabb_test(&b1, &b2));

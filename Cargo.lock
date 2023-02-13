@@ -152,7 +152,6 @@ dependencies = [
 name = "ammo_physics"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "approx",
  "arrayvec 0.7.2",
  "derive_more",
@@ -163,6 +162,7 @@ dependencies = [
  "rand",
  "slab",
  "smallvec",
+ "thiserror",
 ]
 
 [[package]]

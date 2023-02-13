@@ -3,9 +3,9 @@
 
 mod aabb;
 mod collision_tests;
+pub mod errors;
 mod morton;
 mod morton_tree;
-
 mod ray;
 mod raycasting;
 mod v2;
@@ -15,3 +15,4 @@ pub use morton_tree::*;
 pub use ray::*;
 pub use raycasting::*;
 pub use v2::*;
+pub use errors::Result;
