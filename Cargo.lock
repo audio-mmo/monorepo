@@ -166,6 +166,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ammo_tilemap"
+version = "0.1.0"
+dependencies = [
+ "ammo_physics",
+ "proptest",
+]
+
+[[package]]
 name = "ansi_term"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

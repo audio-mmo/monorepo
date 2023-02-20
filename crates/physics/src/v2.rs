@@ -1,7 +1,7 @@
 //! A 2-dimensional vector/point.
 use num::Num;
 
-#[derive(Debug, Copy, Clone, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, Ord, PartialEq, PartialOrd, Hash)]
 pub struct V2<T> {
     pub x: T,
     pub y: T,
